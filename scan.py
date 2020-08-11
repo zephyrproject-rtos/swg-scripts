@@ -30,9 +30,6 @@ gh = Github(gh_token)
 repo = gh.get_repo("zephyrproject-rtos/zephyr")
 gitwork = Git(".")
 
-with open('token') as fd:
-    token = fd.readline().rstrip()
-
 def query(text, field, params={}):
     result = []
     start = 1
