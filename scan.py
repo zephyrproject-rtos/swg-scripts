@@ -6,8 +6,10 @@ import netrc
 import os
 import pickle
 import pprint
+import prettytable
 import requests
 import re
+
 
 jira_host = 'zephyrprojectsec.atlassian.net'
 baseurl = f"https://{jira_host}/rest/api/2/"
@@ -63,13 +65,21 @@ class Issue(object):
     def __init__(self, js):
         self.key = js["key"]
         fields = js["fields"]
+
         self.fixversion = fields["fixVersions"]
         self._status = fields["status"]
         self._issuetype = fields["issuetype"]
-        self.cve = fields[cve_field]
-        self.embargo = fields[embargo_field]
-        self.subtasks = fields["subtasks"]
+        if fields[cve_field] is not None:
+            self.cve = fields[cve_field]
+        else:
+            self.cve = ""
+        if fields[embargo_field] is not None:
+            self.embargo = fields[embargo_field]
+        else:
+            self.embargo = ""
 
+        self.subtasks = fields["subtasks"]
+        self.summary = fields["summary"]
         self.fields = fields
         self.remotes = None
 
@@ -89,6 +99,10 @@ def main():
     if zephyr_base is None:
         print("Environment variable ZEPHYR_BASE not set")
         exit(1)
+
+    table = prettytable.PrettyTable()
+    table.field_names = ['JIRA #', 'JIRA Status', 'Embargo', 'CVE', 'GH pr', 'Zephyr branch']
+
     p = { 'jql': 'project="ZEPSEC"' }
     j = query("search", "issues", params=p)
     gitwork = Git(zephyr_base)
@@ -103,19 +117,29 @@ def main():
               (x.status() != "Rejected")]
 
     for issue in issues:
-        # print(issue.key, issue.cve)
-        print(issue.key, issue.status())
+        merged = ""
+        issue_info = ""
         for link in issue.getlinks():
-            print("    ", link)
+            issue_info += link
             m = pr_re.search(link)
             if m is not None:
                 pr = int(m.group(1))
                 gpr = repo.get_pull(pr)
-                print("        ", pr, gpr.state, gpr.title)
-                for c in gpr.get_commits():
-                    print("        ", pr, c)
-                    # pp.pprint(c.raw_data)
-                    print("            ", gitwork.describe(c.sha))
+                issue_info += " -> {}\n".format(gpr.state)
+                issue_info += "{}\n".format(gpr.title)
+                if gpr.merged:
+                    merged = gitwork.describe(gpr.merge_commit_sha)
+            else:
+                issue_info += " -> Invalid\n"
+
+        if issue.issuetype() == "Backport":
+            issue.key += "\n{}".format("Backport")
+
+        table.add_row([issue.key, issue.status(), issue.embargo,
+                       issue.cve, issue_info, merged])
+
+    table.hrules = prettytable.ALL
+    print(table)
 
 if __name__ == '__main__':
     main()
