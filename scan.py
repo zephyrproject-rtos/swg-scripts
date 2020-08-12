@@ -24,13 +24,17 @@ def get_auth(host):
     if auth is None:
         raise Exception("Expecting a single authenticator for host")
     return (auth[0], auth[2])
+
+
 auth = get_auth(jira_host)
 
-pr_re = re.compile(r'^https://github.com/zephyrproject-rtos/zephyr/pull/(\d+)$')
+pr_re = re.compile(
+    r'^https://github.com/zephyrproject-rtos/zephyr/pull/(\d+)$')
 
 gh_token = get_auth('github.com')[1]
 gh = Github(gh_token)
 repo = gh.get_repo("zephyrproject-rtos/zephyr")
+
 
 def query(text, field, params={}):
     result = []
@@ -58,8 +62,10 @@ def query(text, field, params={}):
 
     return result
 
+
 def get_remote_links(key):
     return query("issue/" + key + "/remotelink", 'unknown')
+
 
 class Issue(object):
     def __init__(self, js):
@@ -94,6 +100,7 @@ class Issue(object):
             self.remotes = get_remote_links(self.key)
         return [x["object"]["url"] for x in self.remotes]
 
+
 def main():
     zephyr_base = os.getenv("ZEPHYR_BASE")
     if zephyr_base is None:
@@ -101,9 +108,10 @@ def main():
         exit(1)
 
     table = prettytable.PrettyTable()
-    table.field_names = ['JIRA #', 'JIRA Status', 'Embargo', 'CVE', 'GH pr', 'Zephyr branch']
+    table.field_names = ['JIRA #', 'JIRA Status',
+                         'Embargo', 'CVE', 'GH pr', 'Zephyr branch']
 
-    p = { 'jql': 'project="ZEPSEC"' }
+    p = {'jql': 'project="ZEPSEC"'}
     j = query("search", "issues", params=p)
     gitwork = Git(zephyr_base)
 
@@ -140,6 +148,7 @@ def main():
 
     table.hrules = prettytable.ALL
     print(table)
+
 
 if __name__ == '__main__':
     main()
