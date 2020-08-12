@@ -41,14 +41,11 @@ def query(text, field, params={}):
             print(r)
             raise Exception("Failure in query")
         j = r.json()
-        # print(len(j[field]), j["maxResults"])
 
         # The Jira API is inconsistent.  If the results returned are
         # directly a list, just use that.
         if isinstance(j, list):
             return j
-        # for k in j.keys():
-        #     print(k)
 
         result.extend(j[field])
 
@@ -74,10 +71,7 @@ class Issue(object):
         self.subtasks = fields["subtasks"]
 
         self.fields = fields
-
         self.remotes = None
-        # Only query the remotes lazily, because it is slow.
-        # self.remotes = get_remote_links(self.key)
 
     def status(self):
         return self._status["name"]
@@ -99,13 +93,8 @@ def main():
     j = query("search", "issues", params=p)
     gitwork = Git(zephyr_base)
 
-    pp = pprint.PrettyPrinter()
-    # j = r.json()
-
-    # pp.pprint(j['issues'][1])
     issues = []
     for jissue in j:
-        # print(jissue['key'])
         issue = Issue(jissue)
         issues.append(issue)
 
