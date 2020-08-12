@@ -3,6 +3,7 @@
 from github import Github
 from git import Git
 import netrc
+import os
 import pickle
 import pprint
 import requests
@@ -28,7 +29,6 @@ pr_re = re.compile(r'^https://github.com/zephyrproject-rtos/zephyr/pull/(\d+)$')
 gh_token = get_auth('github.com')[1]
 gh = Github(gh_token)
 repo = gh.get_repo("zephyrproject-rtos/zephyr")
-gitwork = Git(".")
 
 def query(text, field, params={}):
     result = []
@@ -91,8 +91,13 @@ class Issue(object):
         return [x["object"]["url"] for x in self.remotes]
 
 def main():
+    zephyr_base = os.getenv("ZEPHYR_BASE")
+    if zephyr_base is None:
+        print("Environment variable ZEPHYR_BASE not set")
+        exit(1)
     p = { 'jql': 'project="ZEPSEC"' }
     j = query("search", "issues", params=p)
+    gitwork = Git(zephyr_base)
 
     pp = pprint.PrettyPrinter()
     # j = r.json()
