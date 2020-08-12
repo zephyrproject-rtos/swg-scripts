@@ -11,12 +11,12 @@ import requests
 import re
 
 
-jira_host = 'zephyrprojectsec.atlassian.net'
-baseurl = f"https://{jira_host}/rest/api/2/"
+JIRA_HOST = 'zephyrprojectsec.atlassian.net'
+BASEURL = f"https://{JIRA_HOST}/rest/api/2/"
 
-# Custom field names.
-cve_field = 'customfield_10035'
-embargo_field = 'customfield_10051'
+# Zephyr JIRA custom field names.
+CVE_FIELD = 'customfield_10035'
+EMBARGO_FIELD = 'customfield_10051'
 
 # Get authentication information.
 def get_auth(host):
@@ -26,23 +26,14 @@ def get_auth(host):
     return (auth[0], auth[2])
 
 
-auth = get_auth(jira_host)
-
-pr_re = re.compile(
-    r'^https://github.com/zephyrproject-rtos/zephyr/pull/(\d+)$')
-
-gh_token = get_auth('github.com')[1]
-gh = Github(gh_token)
-repo = gh.get_repo("zephyrproject-rtos/zephyr")
-
-
 def query(text, field, params={}):
+    auth = get_auth(JIRA_HOST)
     result = []
     start = 1
 
     while True:
         params["startAt"] = start
-        r = requests.get(baseurl + text, auth=auth, params=params)
+        r = requests.get(BASEURL + text, auth=auth, params=params)
         if r.status_code != 200:
             print(r)
             raise Exception("Failure in query")
@@ -75,12 +66,12 @@ class Issue(object):
         self.fixversion = fields["fixVersions"]
         self._status = fields["status"]
         self._issuetype = fields["issuetype"]
-        if fields[cve_field] is not None:
-            self.cve = fields[cve_field]
+        if fields[CVE_FIELD] is not None:
+            self.cve = fields[CVE_FIELD]
         else:
             self.cve = ""
-        if fields[embargo_field] is not None:
-            self.embargo = fields[embargo_field]
+        if fields[EMBARGO_FIELD] is not None:
+            self.embargo = fields[EMBARGO_FIELD]
         else:
             self.embargo = ""
 
@@ -102,12 +93,18 @@ class Issue(object):
 
 
 def main():
+    pr_re = re.compile(
+        r'^https://github.com/zephyrproject-rtos/zephyr/pull/(\d+)$')
+    gh_token = get_auth('github.com')[1]
+    gh = Github(gh_token)
+    repo = gh.get_repo("zephyrproject-rtos/zephyr")
     zephyr_base = os.getenv("ZEPHYR_BASE")
+    table = prettytable.PrettyTable()
+
     if zephyr_base is None:
         print("Environment variable ZEPHYR_BASE not set")
         exit(1)
 
-    table = prettytable.PrettyTable()
     table.field_names = ['JIRA #', 'JIRA Status',
                          'Embargo', 'CVE', 'GH pr', 'Zephyr branch']
 
