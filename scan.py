@@ -98,18 +98,9 @@ def main():
         issue = Issue(jissue)
         issues.append(issue)
 
-    # Filter out the issues that are "Public".
-    issues = [x for x in issues if x.status() != "Public"]
-    issues = [x for x in issues if x.status() != "Rejected"]
-
-    # Select open primary issues (with CVE).
-    if False:
-        issues = [x for x in issues if x.issuetype() != "Backport"]
-        issues = [x for x in issues if x.cve is not None]
-
-    # Select unresolved backports
-    if True:
-        issues = [x for x in issues if x.issuetype() == "Backport"]
+    # Filter out the issues that are "Public or Rejected".
+    issues = [x for x in issues if (x.status() != "Public") and
+              (x.status() != "Rejected")]
 
     for issue in issues:
         # print(issue.key, issue.cve)
