@@ -1,4 +1,10 @@
 #! /usr/bin/env python3
+#
+# Copyright (c) 2020 Linaro Limited
+# Copyright (c) 2020 Intel Corporation
+#
+# SPDX-License-Identifier: Apache-2.0
+#
 
 from github import Github
 from git import Git
