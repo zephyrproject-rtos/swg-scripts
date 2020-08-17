@@ -81,10 +81,11 @@ class Issue(object):
         else:
             self.embargo = ""
 
-        self.subtasks = fields["subtasks"]
+        self.subtasks = [x["key"] for x in fields["subtasks"]]
         self.summary = fields["summary"]
         self.fields = fields
         self.remotes = None
+        self.parent = None
 
     def status(self):
         return self._status["name"]
@@ -96,6 +97,39 @@ class Issue(object):
         if self.remotes is None:
             self.remotes = get_remote_links(self.key)
         return [x["object"]["url"] for x in self.remotes]
+
+
+class Parentage(object):
+
+    def __init__(self, issues):
+        back = {}
+        for parent in issues:
+            for child in parent.subtasks:
+                back[child] = parent.key
+        self.back = back
+
+    def fixnum(key):
+        """Jira issue numbers are shortened numeric strings.  These
+        don't sort properly.  To fix this, check for a number at the
+        end of the issue number, and print it with a significant
+        number of leading zeros."""
+
+        fields = key.split('-')
+        return f"{fields[0]}-{int(fields[1]):08}"
+
+    def sort(self, issues):
+        def getkey(item):
+            if item.key in self.back:
+                return (Parentage.fixnum(self.back[item.key]) + '/' +
+                        Parentage.fixnum(item.key))
+            else:
+                return Parentage.fixnum(item.key) + '~'
+        issues.sort(key=getkey, reverse=True)
+
+    def fill_parents(self, issues):
+        for issue in issues:
+            if issue.key in self.back:
+                issue.parent = self.back[issue.key]
 
 
 def main():
@@ -123,9 +157,14 @@ def main():
         issue = Issue(jissue)
         issues.append(issue)
 
+    parentage = Parentage(issues)
+
     # Filter out the issues that are "Public or Rejected".
     issues = [x for x in issues if (x.status() != "Public") and
               (x.status() != "Rejected")]
+
+    parentage.sort(issues)
+    parentage.fill_parents(issues)
 
     for issue in issues:
         merged = ""
@@ -149,7 +188,7 @@ def main():
                 issue_info += " -> Invalid\n"
 
         if issue.issuetype() == "Backport":
-            issue.key += "\n{}".format("Backport")
+            issue.key += "\nB({})".format(issue.parent)
 
         table.add_row([issue.key, issue.status(), issue.embargo,
                        issue.cve, issue_info, merged])
