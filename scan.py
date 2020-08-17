@@ -140,6 +140,11 @@ def main():
                 issue_info += "{}\n".format(gpr.title)
                 if gpr.merged:
                     merged = gitwork.describe(gpr.merge_commit_sha)
+                    try:
+                        m2 = gitwork.describe(gpr.merge_commit_sha, contains=True)
+                        merged += "\n" + m2
+                    except:
+                        pass
             else:
                 issue_info += " -> Invalid\n"
 
