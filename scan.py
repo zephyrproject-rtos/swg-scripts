@@ -32,6 +32,14 @@ def get_auth(host):
     return (auth[0], auth[2])
 
 
+pr_re = re.compile(
+    r'^https://github.com/zephyrproject-rtos/zephyr/pull/(\d+)$')
+gh_token = get_auth('github.com')[1]
+gh = Github(gh_token)
+repo = gh.get_repo("zephyrproject-rtos/zephyr")
+zephyr_base = os.getenv("ZEPHYR_BASE")
+
+
 def query(text, field, params={}):
     auth = get_auth(JIRA_HOST)
     result = []
@@ -132,13 +140,58 @@ class Parentage(object):
                 issue.parent = self.back[issue.key]
 
 
+class Report(object):
+
+    def __init__(self, issues, gitwork):
+        self.issues = issues
+        self.gitwork = gitwork
+
+    def filter(self):
+        self.issues = [x for x in self.issues if (x.status() != "Public") and
+                (x.status() != "Rejected")]
+
+    def run(self):
+        self.table = prettytable.PrettyTable()
+        self.table.field_names = ['JIRA #', 'JIRA Status',
+                'Embargo', 'CVE', 'GH pr', 'Zephyr branch']
+
+        parentage = Parentage(self.issues)
+        self.filter()
+        parentage.sort(self.issues)
+        parentage.fill_parents(self.issues)
+
+        for issue in self.issues:
+            merged = ""
+            issue_info = ""
+            for link in issue.getlinks():
+                issue_info += link
+                m = pr_re.search(link)
+                if m is not None:
+                    pr = int(m.group(1))
+                    gpr = repo.get_pull(pr)
+                    issue_info += " -> {}\n".format(gpr.state)
+                    issue_info += "{}\n".format(gpr.title)
+                    if gpr.merged:
+                        merged = self.gitwork.describe(gpr.merge_commit_sha)
+                        try:
+                            m2 = self.gitwork.describe(gpr.merge_commit_sha, contains=True)
+                            merged += "\n" + m2
+                        except:
+                            pass
+                else:
+                    issue_info += " -> Invalid\n"
+
+            if issue.issuetype() == "Backport":
+                issue.key += "\nB({})".format(issue.parent)
+
+            self.table.add_row([issue.key, issue.status(), issue.embargo,
+                issue.cve, issue_info, merged])
+
+        self.table.hrules = prettytable.ALL
+        print(self.table)
+
+
 def main():
-    pr_re = re.compile(
-        r'^https://github.com/zephyrproject-rtos/zephyr/pull/(\d+)$')
-    gh_token = get_auth('github.com')[1]
-    gh = Github(gh_token)
-    repo = gh.get_repo("zephyrproject-rtos/zephyr")
-    zephyr_base = os.getenv("ZEPHYR_BASE")
     table = prettytable.PrettyTable()
 
     if zephyr_base is None:
@@ -157,44 +210,8 @@ def main():
         issue = Issue(jissue)
         issues.append(issue)
 
-    parentage = Parentage(issues)
-
-    # Filter out the issues that are "Public or Rejected".
-    issues = [x for x in issues if (x.status() != "Public") and
-              (x.status() != "Rejected")]
-
-    parentage.sort(issues)
-    parentage.fill_parents(issues)
-
-    for issue in issues:
-        merged = ""
-        issue_info = ""
-        for link in issue.getlinks():
-            issue_info += link
-            m = pr_re.search(link)
-            if m is not None:
-                pr = int(m.group(1))
-                gpr = repo.get_pull(pr)
-                issue_info += " -> {}\n".format(gpr.state)
-                issue_info += "{}\n".format(gpr.title)
-                if gpr.merged:
-                    merged = gitwork.describe(gpr.merge_commit_sha)
-                    try:
-                        m2 = gitwork.describe(gpr.merge_commit_sha, contains=True)
-                        merged += "\n" + m2
-                    except:
-                        pass
-            else:
-                issue_info += " -> Invalid\n"
-
-        if issue.issuetype() == "Backport":
-            issue.key += "\nB({})".format(issue.parent)
-
-        table.add_row([issue.key, issue.status(), issue.embargo,
-                       issue.cve, issue_info, merged])
-
-    table.hrules = prettytable.ALL
-    print(table)
+    report = Report(issues, gitwork=gitwork)
+    report.run()
 
 
 if __name__ == '__main__':
