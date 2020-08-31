@@ -8,6 +8,7 @@
 
 from github import Github
 from git import Git
+import argparse
 import netrc
 import os
 import pickle
@@ -105,7 +106,7 @@ class Parentage(object):
         back = {}
         for parent in issues:
             for child in parent.subtasks:
-                back[child] = parent.key
+                back[child] = parent
         self.back = back
 
     def fixnum(key):
@@ -119,8 +120,8 @@ class Parentage(object):
 
     def sort(self, issues):
         def getkey(item):
-            if item.key in self.back:
-                return (Parentage.fixnum(self.back[item.key]) + '/' +
+            if item in self.back:
+                return (Parentage.fixnum(self.back[item].key) + '/' +
                         Parentage.fixnum(item.key))
             else:
                 return Parentage.fixnum(item.key) + '~'
@@ -132,25 +133,95 @@ class Parentage(object):
                 issue.parent = self.back[issue.key]
 
 
-def main():
-    pr_re = re.compile(
-        r'^https://github.com/zephyrproject-rtos/zephyr/pull/(\d+)$')
+def parse_args():
+    global args
+
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+
+    parser.add_argument("-r", "--release", required=False, action="store_true",
+                        help="Generate a report for release manager consumption")
+    args = parser.parse_args()
+
+
+def generate_table(issues, zephyr_base, release = False) -> str:
     gh_token = get_auth('github.com')[1]
     gh = Github(gh_token)
     repo = gh.get_repo("zephyrproject-rtos/zephyr")
-    zephyr_base = os.getenv("ZEPHYR_BASE")
     table = prettytable.PrettyTable()
+
+    table.field_names = ['JIRA #', 'JIRA Status',
+                         'Embargo', 'CVE', 'GH pr', 'Zephyr branch']
+    pr_re = re.compile(
+        r'^https://github.com/zephyrproject-rtos/zephyr/pull/(\d+)$')
+    gitwork = Git(zephyr_base)
+
+    for issue in issues:
+        merged = ""
+        issue_info = ""
+        links = issue.getlinks()
+        issue_released = False
+
+        if release and not links:
+            continue
+
+        for link in links:
+            issue_info += link
+            m = pr_re.search(link)
+            if m is not None:
+                pr = int(m.group(1))
+                gpr = repo.get_pull(pr)
+                issue_info += " -> {}\n".format(gpr.state)
+                issue_info += "{}\n".format(gpr.title)
+                if gpr.merged:
+                    merged = gitwork.describe(gpr.merge_commit_sha)
+                    try:
+                        m2 = gitwork.describe(gpr.merge_commit_sha, contains=True)
+                        issue_released = True
+                        merged += "\n" + m2
+                    except:
+                        pass
+            else:
+                issue_info += " -> Invalid\n"
+
+        if issue_released and release:
+            continue
+
+        if issue.issuetype() == "Backport":
+            issue.key += "\nB({})".format(issue.parent)
+
+        embargo = ""
+        if issue.embargo != "":
+            embargo = issue.embargo
+        elif issue.parent:
+            embargo = issue.parent.embargo
+
+        table.add_row([issue.key, issue.status(), embargo,
+                       issue.cve, issue_info, merged])
+
+    table.hrules = prettytable.ALL
+
+    if release:
+        table_contents = table.get_string(fields=["Embargo", "GH pr", "Zephyr branch"])
+    else:
+        table_contents = table.get_string()
+
+    table.hrules = prettytable.ALL
+    return table_contents
+
+
+def main():
+    parse_args()
+
+    zephyr_base = os.getenv("ZEPHYR_BASE")
 
     if zephyr_base is None:
         print("Environment variable ZEPHYR_BASE not set")
         exit(1)
 
-    table.field_names = ['JIRA #', 'JIRA Status',
-                         'Embargo', 'CVE', 'GH pr', 'Zephyr branch']
-
     p = {'jql': 'project="ZEPSEC"'}
     j = query("search", "issues", params=p)
-    gitwork = Git(zephyr_base)
 
     issues = []
     for jissue in j:
@@ -166,35 +237,7 @@ def main():
     parentage.sort(issues)
     parentage.fill_parents(issues)
 
-    for issue in issues:
-        merged = ""
-        issue_info = ""
-        for link in issue.getlinks():
-            issue_info += link
-            m = pr_re.search(link)
-            if m is not None:
-                pr = int(m.group(1))
-                gpr = repo.get_pull(pr)
-                issue_info += " -> {}\n".format(gpr.state)
-                issue_info += "{}\n".format(gpr.title)
-                if gpr.merged:
-                    merged = gitwork.describe(gpr.merge_commit_sha)
-                    try:
-                        m2 = gitwork.describe(gpr.merge_commit_sha, contains=True)
-                        merged += "\n" + m2
-                    except:
-                        pass
-            else:
-                issue_info += " -> Invalid\n"
-
-        if issue.issuetype() == "Backport":
-            issue.key += "\nB({})".format(issue.parent)
-
-        table.add_row([issue.key, issue.status(), issue.embargo,
-                       issue.cve, issue_info, merged])
-
-    table.hrules = prettytable.ALL
-    print(table)
+    print(generate_table(issues, zephyr_base, args.release))
 
 
 if __name__ == '__main__':
