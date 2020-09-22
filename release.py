@@ -84,6 +84,8 @@ class Issue(object):
         self.embargo_str = fields[EMBARGO_FIELD]
         if self.embargo_str:
             self.embargo = datetime.strptime(self.embargo_str, "%Y-%m-%d")
+        else:
+            self.embargo = None
 
         self.summary = fields["summary"]
         self.parent = not fields['issuetype']['subtask']
