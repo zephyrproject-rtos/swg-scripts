@@ -138,7 +138,7 @@ def generate_vulnerabilities(issues):
             issue.summary = "Under embargo until {}".format(issue.embargo_str)
 
         print(issue.cve)
-        print("_" * len(issue.cve))
+        print("-" * len(issue.cve))
         print("")
         print(issue.summary)
 
