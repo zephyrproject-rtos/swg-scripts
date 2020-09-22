@@ -142,6 +142,9 @@ def generate_vulnerabilities(issues):
         print("")
         print(issue.summary)
 
+        print("\n- `{} <https://cve.mitre.org/cgi-bin/cvename.cgi?name={}>`_"
+              .format(issue.cve, issue.cve))
+
         if not under_embargo:
             print("\n- `Zephyr project bug tracker {}\n  "
                   "<https://zephyrprojectsec.atlasssian.net/browse/{}>`_"
