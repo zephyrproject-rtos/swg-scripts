@@ -120,8 +120,8 @@ class Parentage(object):
 
     def sort(self, issues):
         def getkey(item):
-            if item in self.back:
-                return (Parentage.fixnum(self.back[item].key) + '/' +
+            if item.key in self.back:
+                return (Parentage.fixnum(self.back[item.key].key) + '/' +
                         Parentage.fixnum(item.key))
             else:
                 return Parentage.fixnum(item.key) + '~'
