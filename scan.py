@@ -189,7 +189,7 @@ def generate_table(issues, zephyr_base, release = False) -> str:
             continue
 
         if issue.issuetype() == "Backport":
-            issue.key += "\nB({})".format(issue.parent)
+            issue.key += "\nB({})".format(issue.parent.key)
 
         embargo = ""
         if issue.embargo != "":
