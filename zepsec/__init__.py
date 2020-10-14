@@ -37,6 +37,11 @@ def query(text, field, params={}):
         if isinstance(j, list):
             return j
 
+        # Other calls return the issue object directly, we indicate
+        # this with a field of None.
+        if field is None:
+            return j
+
         result.extend(j[field])
 
         if len(j[field]) < j["maxResults"]:
@@ -57,6 +62,7 @@ class Issue(object):
         fields = js["fields"]
 
         self.fixversion = fields["fixVersions"]
+        self.versions = fields["versions"]
         self._status = fields["status"]
         self._issuetype = fields["issuetype"]
         if fields[CVE_FIELD] is not None:
