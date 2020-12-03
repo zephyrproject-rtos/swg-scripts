@@ -1,0 +1,10 @@
+[Unit]
+Description=Send report to release managers
+
+[Service]
+Type=oneshot
+Environment=ZEPHYR_BASE=</path/to/zephyr/>
+ExecStart=</path/to/release-report.sh>
+
+[Install]
+WantedBy=default.target
