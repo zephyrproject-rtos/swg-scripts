@@ -85,6 +85,7 @@ def generate_table(issues, zephyr_base, release = False, html = False) -> str:
                        issue.cve, issue_info, merged])
 
     table.hrules = prettytable.ALL
+    table.format = True
 
     if html:
         get_contents = table.get_html_string
@@ -96,7 +97,6 @@ def generate_table(issues, zephyr_base, release = False, html = False) -> str:
     else:
         table_contents = get_contents()
 
-    table.hrules = prettytable.ALL
     return table_contents
 
 
