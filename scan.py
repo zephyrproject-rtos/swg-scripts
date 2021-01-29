@@ -26,10 +26,12 @@ def parse_args():
                         help="Generate a report for release manager consumption")
     parser.add_argument("-H", "--html", required=False, action="store_true",
                         help="Generate a report in HTML")
+    parser.add_argument("-C", "--csv", required=False, action="store_true",
+                        help="Generate a report in CSV")
     args = parser.parse_args()
 
 
-def generate_table(issues, zephyr_base, release = False, html = False) -> str:
+def generate_table(issues, zephyr_base, release=False, html=False, csv=False) -> str:
     gh_token = zepsec.get_auth('github.com')[1]
     gh = Github(gh_token)
     repo = gh.get_repo("zephyrproject-rtos/zephyr")
@@ -89,6 +91,8 @@ def generate_table(issues, zephyr_base, release = False, html = False) -> str:
 
     if html:
         get_contents = table.get_html_string
+    elif csv:
+        get_contents = table.get_csv_string
     else:
         get_contents = table.get_string
 
@@ -126,7 +130,7 @@ def main():
     parentage.sort(issues)
     parentage.fill_parents(issues)
 
-    print(generate_table(issues, zephyr_base, args.release, args.html))
+    print(generate_table(issues, zephyr_base, args.release, args.html, args.csv))
 
 
 if __name__ == '__main__':
