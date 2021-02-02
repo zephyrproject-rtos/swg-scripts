@@ -5,10 +5,20 @@ use crate::cve::{
 };
 
 mod cve;
+mod zepsec;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let data = Cves::fetch().await?;
-    println!("data: {:#?}", data);
+    // CVE fetch.
+    if false {
+        let data = Cves::fetch().await?;
+        println!("data: {:#?}", data);
+    }
+
+    // Query JIRA.
+    if true {
+        zepsec::run().await?;
+    }
+
     Ok(())
 }
