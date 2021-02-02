@@ -5,6 +5,7 @@ use netrc::{Machine, Netrc};
 use serde::{Deserialize};
 // use serde_json::Value;
 use std::{
+    collections::BTreeMap,
     fs::File,
     io::BufReader,
 };
@@ -56,8 +57,13 @@ struct SearchResult {
     total: usize,
 }
 
+#[derive(Debug)]
+pub struct Info {
+    pub issues: BTreeMap<String, Issue>,
+}
+
 #[derive(Debug, Deserialize)]
-struct Issue {
+pub struct Issue {
     fields: SubIssue,
     key: String,
     #[serde(rename = "self")]
@@ -92,30 +98,38 @@ struct Subtask {
     key: String,
 }
 
-pub async fn run() -> Result<()> {
-    let auth = netrc()?;
-    let client = reqwest::Client::new();
-    let mut result = vec![];
-    let mut start = 1;
-    loop {
-        let start_text = format!("{}", start);
-        let mut resp = client.get(&url("search"))
-            .basic_auth(&auth.login, auth.password.as_ref())
-            .query(&[("jql", "project=\"ZEPSEC\""), ("startAt", &start_text)])
-            .send()
-            .await?
-            .json::<SearchResult>().await?;
-        let count = resp.issues.len();
-        result.append(&mut resp.issues);
-        println!("count: {}, max: {}, total: {}", count, resp.max_results, resp.total);
-        start += count;
+impl Info {
+    // Load the basic info from JIRA.  This fills in everything that can be
+    // determined by a single search query.
+    pub async fn load() -> Result<Info> {
+        let auth = netrc()?;
+        let client = reqwest::Client::new();
+        let mut result = vec![];
+        let mut start = 1;
+        loop {
+            let start_text = format!("{}", start);
+            let mut resp = client.get(&url("search"))
+                .basic_auth(&auth.login, auth.password.as_ref())
+                .query(&[("jql", "project=\"ZEPSEC\""), ("startAt", &start_text)])
+                .send()
+                .await?
+                .json::<SearchResult>().await?;
+            let count = resp.issues.len();
+            result.append(&mut resp.issues);
+            // println!("count: {}, max: {}, total: {}", count, resp.max_results, resp.total);
+            start += count;
 
-        // If the reply was fewer than requested, there aren't any more.
-        if count < resp.max_results {
-            break;
+            // If the reply was fewer than requested, there aren't any more.
+            if count < resp.max_results {
+                break;
+            }
         }
+        // println!("{} issues", result.len());
+        // println!("{:#?}", result);
+
+        // Convert the result into a map.
+        Ok(Info {
+            issues: result.into_iter().map(|i| (i.key.clone(), i)).collect(),
+        })
     }
-    println!("{} issues", result.len());
-    println!("{:#?}", result);
-    Ok(())
 }

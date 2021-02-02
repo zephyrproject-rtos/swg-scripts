@@ -17,7 +17,8 @@ async fn main() -> Result<()> {
 
     // Query JIRA.
     if true {
-        zepsec::run().await?;
+        let info = zepsec::Info::load().await?;
+        println!("issues: {}", info.issues.len());
     }
 
     Ok(())
