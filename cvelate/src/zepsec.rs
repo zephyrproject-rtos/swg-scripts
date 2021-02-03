@@ -88,6 +88,7 @@ pub struct MissingInfo {
 
 #[derive(Debug)]
 pub struct EmbargoInfo {
+    pub key: String,
     pub cve: String,
     pub embargo_date: NaiveDate,
 }
@@ -258,6 +259,7 @@ impl Info {
         let mut result: Vec<_> = self.issues.values()
             .filter(|issue| issue.fields.cve.is_some() && issue.fields.embargo_date.is_some())
             .map(|issue| EmbargoInfo {
+                key: issue.key.clone(),
                 cve: issue.fields.cve.as_ref().unwrap().clone(),
                 embargo_date: issue.fields.embargo_date.as_ref().unwrap().clone(),
             })
@@ -266,7 +268,7 @@ impl Info {
         // This sort isn't perfect, as it will put CVEs with more digits
         // after earlier ones.  Now that CVEs regularly get 5 digits, this
         // can be misleading.
-        result.sort_by(|a, b| a.cve.cmp(&b.cve));
+        result.sort_by(|a, b| a.embargo_date.cmp(&b.embargo_date));
 
         Ok(result)
     }

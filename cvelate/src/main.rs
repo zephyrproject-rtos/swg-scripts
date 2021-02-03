@@ -105,6 +105,8 @@ impl FullInfo {
             .map(|c| (c.cve_id.clone(), c))
             .collect();
         let embargo = self.info.embargo_dates()?;
+        println!("Issue      | Embargo    | State    | CVE");
+        println!("-----------+------------+----------+--------------");
         for emb in &embargo {
             let ent = by_cve.get(&emb.cve)
                 .map(|c| format!("{:?}", c.state))
@@ -112,9 +114,9 @@ impl FullInfo {
 
             if !past && emb.embargo_date >= now {
                 past = true;
-                println!("-----------------------");
+                println!("-----------+------------+----------+--------------");
             }
-            println!("{:-12} {:-8} {}", emb.embargo_date, ent, emb.cve);
+            println!("{:-10} | {:-12} | {:-8} | {}", emb.key, emb.embargo_date, ent, emb.cve);
         }
         Ok(())
     }
