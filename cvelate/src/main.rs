@@ -3,6 +3,9 @@ use anyhow::Result;
 use crate::cve::{
     Cves,
 };
+use std::{
+    sync::Arc,
+};
 
 mod cve;
 mod zepsec;
@@ -17,8 +20,15 @@ async fn main() -> Result<()> {
 
     // Query JIRA.
     if true {
-        let info = zepsec::Info::load().await?;
+        let info = Arc::new(zepsec::Info::load().await?);
         println!("issues: {}", info.issues.len());
+        // println!("issues: {:#?}", info.issues);
+
+        info.clone().concurrent_get_links().await?;
+        for key in info.issues.keys() {
+            let link = info.get_link(key).await?;
+            println!("2nd: {:?}: {:?}", key, link);
+        }
     }
 
     Ok(())
