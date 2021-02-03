@@ -1,6 +1,7 @@
 //! Library for queries to Zepsec.
 
 use anyhow::{anyhow, Result};
+use chrono::NaiveDate;
 use netrc::{Machine, Netrc};
 use reqwest::Client;
 use serde::{Deserialize};
@@ -79,6 +80,18 @@ pub struct Info {
     links: Arc<Mutex<BTreeMap<String, Vec<String>>>>,
 }
 
+#[derive(Debug)]
+pub struct MissingInfo {
+    pub key: String,
+    pub cve: String,
+}
+
+#[derive(Debug)]
+pub struct EmbargoInfo {
+    pub cve: String,
+    pub embargo_date: NaiveDate,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct Issue {
     fields: SubIssue,
@@ -93,6 +106,10 @@ struct SubIssue {
     summary: String,
     #[serde(rename = "customfield_10035")]
     cve: Option<String>,
+
+    #[serde(rename = "customfield_10051")]
+    embargo_date: Option<NaiveDate>,
+
     versions: Vec<Version>,
     #[serde(rename = "fixVersions")]
     fix_versions: Vec<Version>,
@@ -216,5 +233,41 @@ impl Info {
             let _ = child.await?;
         }
         Ok(())
+    }
+
+    /// Retrieve all issues that have a CVE but don't have an embargo date.
+    pub fn missing_embargo(&self) -> Result<Vec<MissingInfo>> {
+        let mut result: Vec<_> = self.issues.values()
+            .filter(|issue| issue.fields.cve.is_some() && issue.fields.embargo_date.is_none())
+            .map(|issue| MissingInfo {
+                key: issue.key.clone(),
+                cve: issue.fields.cve.as_ref().unwrap().clone(),
+            })
+            .collect();
+
+        // This sort isn't perfect, as it will put CVEs with more digits
+        // after earlier ones.  Now that CVEs regularly get 5 digits, this
+        // can be misleading.
+        result.sort_by(|a, b| a.cve.cmp(&b.cve));
+
+        Ok(result)
+    }
+
+    /// Retrieve all issues that have a CVE with an embargo date.
+    pub fn embargo_dates(&self) -> Result<Vec<EmbargoInfo>> {
+        let mut result: Vec<_> = self.issues.values()
+            .filter(|issue| issue.fields.cve.is_some() && issue.fields.embargo_date.is_some())
+            .map(|issue| EmbargoInfo {
+                cve: issue.fields.cve.as_ref().unwrap().clone(),
+                embargo_date: issue.fields.embargo_date.as_ref().unwrap().clone(),
+            })
+            .collect();
+
+        // This sort isn't perfect, as it will put CVEs with more digits
+        // after earlier ones.  Now that CVEs regularly get 5 digits, this
+        // can be misleading.
+        result.sort_by(|a, b| a.cve.cmp(&b.cve));
+
+        Ok(result)
     }
 }

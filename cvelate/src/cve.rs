@@ -71,7 +71,9 @@ impl Cves {
         tokio::spawn(async move {
             let status = child.wait().await
                 .expect("child error");
-            println!("Child status: {}", status);
+            if !status.success() {
+                log::error!("Error running cve tool: {:?}", status);
+            }
         });
 
         let mut buffer = vec![];
