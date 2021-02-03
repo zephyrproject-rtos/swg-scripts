@@ -1,5 +1,6 @@
 use anyhow::Result;
 
+use chrono::Local;
 use crate::cve::{
     Cves, Cve,
 };
@@ -96,6 +97,9 @@ impl FullInfo {
     }
 
     async fn embargo(&self) -> Result<()> {
+        let now = Local::now().naive_local().date();
+        let mut past = false;
+
         let by_cve: BTreeMap<String, &Cve> = self.cves.cve_ids
             .iter()
             .map(|c| (c.cve_id.clone(), c))
@@ -105,6 +109,11 @@ impl FullInfo {
             let ent = by_cve.get(&emb.cve)
                 .map(|c| format!("{:?}", c.state))
                 .unwrap_or_else(|| "*None*".to_string());
+
+            if !past && emb.embargo_date >= now {
+                past = true;
+                println!("-----------------------");
+            }
             println!("{:-12} {:-8} {}", emb.embargo_date, ent, emb.cve);
         }
         Ok(())
