@@ -4,6 +4,12 @@ use chrono::Local;
 use crate::cve::{
     Cves, Cve,
 };
+use crate::rnotes::Rnotes;
+use prettytable::{
+    format,
+    Table,
+    cell, row,
+};
 use std::{
     collections::BTreeMap,
     sync::Arc,
@@ -11,6 +17,7 @@ use std::{
 
 mod cve;
 mod report;
+mod rnotes;
 mod zepsec;
 
 struct FullInfo {
@@ -38,6 +45,7 @@ async fn main() -> Result<()> {
         "cve" => FullInfo::new().await?.cve_report().await?,
         "missing" => FullInfo::new().await?.missing_embargo().await?,
         "embargo" => FullInfo::new().await?.embargo().await?,
+        "rnotes" => FullInfo::new().await?.rnotes().await?,
         cmd => {
             log::error!("Unknown command: {:?}", cmd);
             return Ok(());
@@ -99,25 +107,84 @@ impl FullInfo {
     async fn embargo(&self) -> Result<()> {
         let now = Local::now().naive_local().date();
         let mut past = false;
+        let notes = Rnotes::load()?;
 
-        let by_cve: BTreeMap<String, &Cve> = self.cves.cve_ids
+        let by_cve: BTreeMap<&str, &Cve> = self.cves.cve_ids
             .iter()
-            .map(|c| (c.cve_id.clone(), c))
+            .map(|c| (c.cve_id.as_str(), c))
             .collect();
         let embargo = self.info.embargo_dates()?;
-        println!("Issue      | Embargo    | State    | CVE");
-        println!("-----------+------------+----------+--------------");
+
+        let mut tab = Table::new();
+        tab.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
+        tab.set_titles(row!["Issue", "Embargo", "State", "CVE", "rnotes"]);
         for emb in &embargo {
-            let ent = by_cve.get(&emb.cve)
+            let ent = by_cve.get(emb.cve.as_str())
                 .map(|c| format!("{:?}", c.state))
                 .unwrap_or_else(|| "*None*".to_string());
 
             if !past && emb.embargo_date >= now {
                 past = true;
-                println!("-----------+------------+----------+--------------");
+                tab.add_row(row!["-----", "-------", "-----", "---", "------"]);
             }
-            println!("{:-10} | {:-12} | {:-8} | {}", emb.key, emb.embargo_date, ent, emb.cve);
+
+            let rstate = notes.lookup(&emb.cve);
+            tab.add_row(row![emb.key, emb.embargo_date, ent, emb.cve, rstate]);
         }
+        let _ = tab.print_term(term::stdout().unwrap().as_mut())?;
+        Ok(())
+    }
+
+    async fn rnotes(&self) -> Result<()> {
+        let now = Local::now().naive_local().date();
+        let notes = Rnotes::load()?;
+
+        let embargo = self.info.embargo_dates()?;
+
+        for emb in &embargo {
+            let future = emb.embargo_date >= now;
+
+            let rstate = notes.lookup(&emb.cve);
+            if rstate == "Published" {
+                continue;
+            }
+            // TODO: Parse CVE, and print canonical version without
+            // extension.
+            println!("{}", emb.cve);
+            println!("-------------------");
+            if future {
+                println!("");
+                println!("Under embargo until {}", emb.embargo_date);
+                println!("");
+            } else {
+                println!("");
+                println!("{}", self.info.issues[&emb.key].fields.summary);
+                println!("");
+                println!("This has been fixed in ???");
+                println!("");
+
+                // First link is to the CVE database itself.
+                println!("- `{} <https://cve.mitre.org/cgi-bin/cvename.cgi?name={}>`_",
+                    emb.cve, emb.cve);
+                println!("");
+
+                // Second link is to the ZEPSEC bug tracker.
+                println!("- `Zephyr project bug tracker {}", emb.key);
+                println!("  <https://zephyrprojectsec.atlassian.net/browse/{}>`_", emb.key);
+                println!("");
+
+                // Find all of the github links, and figure out what branch
+                // they are on.
+                // TODO: Figure out the branch.
+                for link in self.info.get_link(&emb.key).await? {
+                    println!("- `PR??? fix for v?.?.?");
+                    println!("  <{}>`_", link);
+                    println!("");
+                }
+                // println!("{} ({:?}) (future:{:?})", emb.cve, rstate, future);
+            }
+        }
+
         Ok(())
     }
 }

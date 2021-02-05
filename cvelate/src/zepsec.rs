@@ -95,16 +95,16 @@ pub struct EmbargoInfo {
 
 #[derive(Debug, Deserialize)]
 pub struct Issue {
-    fields: SubIssue,
+    pub fields: SubIssue,
     key: String,
     #[serde(rename = "self")]
     url: String,
 }
 
 #[derive(Debug, Deserialize)]
-struct SubIssue {
+pub struct SubIssue {
     description: Option<String>,
-    summary: String,
+    pub summary: String,
     #[serde(rename = "customfield_10035")]
     cve: Option<String>,
 
