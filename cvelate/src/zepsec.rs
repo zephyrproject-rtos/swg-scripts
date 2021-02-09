@@ -113,14 +113,14 @@ pub struct SubIssue {
 
     versions: Vec<Version>,
     #[serde(rename = "fixVersions")]
-    fix_versions: Vec<Version>,
+    pub fix_versions: Vec<Version>,
     status: Status,
     subtasks: Vec<Subtask>,
 }
 
 #[derive(Debug, Deserialize)]
-struct Version {
-    name: String,
+pub struct Version {
+    pub name: String,
 }
 
 #[derive(Debug, Deserialize)]

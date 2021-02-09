@@ -161,6 +161,7 @@ impl FullInfo {
                 println!("{}", self.info.issues[&emb.key].fields.summary);
                 println!("");
                 println!("This has been fixed in ???");
+                println!("{:#?}", self.info.issues[&emb.key].fields.fix_versions);
                 println!("");
 
                 // First link is to the CVE database itself.
