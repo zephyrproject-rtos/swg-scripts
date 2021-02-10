@@ -1,6 +1,7 @@
 use anyhow::Result;
 
 use chrono::Local;
+use config::Config;
 use crate::cve::{
     Cves, Cve,
 };
@@ -31,6 +32,9 @@ async fn main() -> Result<()> {
     // logging.
     env_logger::init();
 
+    // Load the config data.
+    let config = load_config()?;
+
     // For now, expect a single argument, which is a command to perform.
     let args: Vec<_> = std::env::args().collect();
     if args.len() != 2 {
@@ -42,10 +46,10 @@ async fn main() -> Result<()> {
     }
 
     match args[1].as_str() {
-        "cve" => FullInfo::new().await?.cve_report().await?,
-        "missing" => FullInfo::new().await?.missing_embargo().await?,
-        "embargo" => FullInfo::new().await?.embargo().await?,
-        "rnotes" => FullInfo::new().await?.rnotes().await?,
+        "cve" => FullInfo::new(&config).await?.cve_report().await?,
+        "missing" => FullInfo::new(&config).await?.missing_embargo().await?,
+        "embargo" => FullInfo::new(&config).await?.embargo().await?,
+        "rnotes" => FullInfo::new(&config).await?.rnotes().await?,
         cmd => {
             log::error!("Unknown command: {:?}", cmd);
             return Ok(());
@@ -82,11 +86,11 @@ async fn main() -> Result<()> {
 }
 
 impl FullInfo {
-    async fn new() -> Result<FullInfo> {
+    async fn new(config: &Config) -> Result<FullInfo> {
         log::info!("Reading CVE database");
         let cves = Cves::fetch().await?;
         log::info!("Reading JIRA Issues");
-        let info = Arc::new(zepsec::Info::load().await?);
+        let info = Arc::new(zepsec::Info::load(config).await?);
         log::info!("Loading JIRA remotelinks");
         info.clone().concurrent_get_links().await?;
         Ok(FullInfo{ cves, info })
@@ -188,4 +192,13 @@ impl FullInfo {
 
         Ok(())
     }
+}
+
+fn load_config() -> Result<Config> {
+    let mut settings = Config::default();
+    settings
+        .merge(config::File::with_name(".cvelate"))?
+        .merge(config::Environment::with_prefix("CVELATE"))?;
+
+    Ok(settings)
 }

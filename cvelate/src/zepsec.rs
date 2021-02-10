@@ -1,52 +1,19 @@
 //! Library for queries to Zepsec.
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use chrono::NaiveDate;
-use netrc::{Machine, Netrc};
+use config::Config;
 use reqwest::Client;
 use serde::{Deserialize};
 // use serde_json::Value;
 use std::{
     collections::BTreeMap,
-    fs::File,
-    io::BufReader,
     sync::{Arc, Mutex},
 };
-
-// Grumble, netrc doesn't implement StdError for its Error type.
-// And, it can't handle comments in the file.  Looks rather pointless as a
-// crate, doesn't it.
 
 static HOST: &str = "zephyrprojectsec.atlassian.net";
 fn url(cmd: &str) -> String {
     format!("https://{}/rest/api/2/{}", HOST, cmd)
-}
-
-fn netrc() -> Result<Machine> {
-    let home = dirs::home_dir().ok_or_else(|| anyhow!("Unable to read home directory"))?;
-    let netrc = home.join(".netrc");
-
-    let rc = match Netrc::parse(BufReader::new(File::open(&netrc)?)) {
-        Ok(r) => r,
-        Err(e) => return Err(anyhow!("Error opening .netrc: {:?}", e)),
-    };
-
-    let mut host = None;
-    for h in &rc.hosts {
-        if h.0 == HOST {
-            host = Some(&h.1);
-            break
-        }
-    }
-    let host = host.ok_or_else(|| anyhow!("Machine not found in .netrc: {:?}", HOST))?;
-
-    // Ugh, they don't even define Clone for the Machine type.
-    Ok(Machine {
-        login: host.login.clone(),
-        password: host.password.clone(),
-        account: host.account.clone(),
-        port: host.port.clone(),
-    })
 }
 
 // Query type for search.
@@ -67,7 +34,7 @@ pub struct Info {
     client: Option<Client>,
 
     /// The auth data.
-    auth: Machine,
+    auth: Auth,
 
     /// The issues themselves.  This is a mapping from the JIRA key to the
     /// issue itself.
@@ -78,6 +45,12 @@ pub struct Info {
     /// from key to link info (which are Strings currently), will be filled
     /// with a vec of the links.
     links: Arc<Mutex<BTreeMap<String, Vec<String>>>>,
+}
+
+#[derive(Debug)]
+struct Auth {
+    login: String,
+    password: String,
 }
 
 #[derive(Debug)]
@@ -152,15 +125,15 @@ struct LinkObject {
 impl Info {
     // Load the basic info from JIRA.  This fills in everything that can be
     // determined by a single search query.
-    pub async fn load() -> Result<Info> {
-        let auth = netrc()?;
+    pub async fn load(config: &Config) -> Result<Info> {
+        let auth = Auth::from_config(config)?;
         let client = Client::new();
         let mut result = vec![];
         let mut start = 1;
         loop {
             let start_text = format!("{}", start);
             let mut resp = client.get(&url("search"))
-                .basic_auth(&auth.login, auth.password.as_ref())
+                .basic_auth(&auth.login, Some(&auth.password))
                 .query(&[("jql", "project=\"ZEPSEC\""), ("startAt", &start_text)])
                 .send()
                 .await?
@@ -190,7 +163,7 @@ impl Info {
     // Lookup the external links for a single issue.
     async fn lookup_link(&self, key: &str) -> Result<Vec<String>> {
         let resp = self.client.as_ref().unwrap().get(&url(&format!("issue/{}/remotelink", key)))
-            .basic_auth(&self.auth.login, self.auth.password.as_ref())
+            .basic_auth(&self.auth.login, Some(&self.auth.password))
             .send()
             .await?
             .json::<Vec<LinkOuter>>().await?;
@@ -271,5 +244,13 @@ impl Info {
         result.sort_by(|a, b| a.embargo_date.cmp(&b.embargo_date));
 
         Ok(result)
+    }
+}
+
+impl Auth {
+    fn from_config(config: &Config) -> Result<Auth> {
+        let login = config.get_str("zepsec.login")?;
+        let password = config.get_str("zepsec.password")?;
+        Ok(Auth { login, password })
     }
 }
