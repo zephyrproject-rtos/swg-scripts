@@ -7,13 +7,14 @@ use crate::cve::{
 };
 use crate::github::Github;
 use crate::rnotes::Rnotes;
+use crate::zepsec::PullRequest;
 use prettytable::{
     format,
     Table,
     cell, row,
 };
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap},
     sync::Arc,
 };
 
@@ -28,7 +29,7 @@ struct FullInfo {
     cves: Cves,
     info: Arc<zepsec::Info>,
     #[allow(unused)]
-    github: Github,
+    github: Arc<Github>,
 }
 
 #[tokio::main]
@@ -99,7 +100,7 @@ impl FullInfo {
         let info = Arc::new(zepsec::Info::load(config).await?);
         log::info!("Loading JIRA remotelinks");
         info.clone().concurrent_get_links().await?;
-        let github = Github::new(config)?;
+        let github = Arc::new(Github::new(config)?);
         Ok(FullInfo{ cves, info, github })
     }
 
@@ -204,20 +205,27 @@ impl FullInfo {
     /// and compare what JIRA thinks about "fixed version", with where they
     /// were actually merged.
     async fn merged(&self) -> Result<()> {
-        for item in self.info.issues_with_prs().await? {
-            if item.links.iter().any(|i|
-                i.user != "zephyrproject-rtos" ||
-                i.repo != "zephyr")
-            {
-                log::error!("Unsupported project for github link {:?}", item.links);
-            }
+        let issues = self.info.issues_with_prs().await?;
+        // Collect all of the github PRs.
+        let prs: BTreeMap<_, _> = issues.iter()
+            .flat_map(|i| i.links.iter().filter(|l|
+                    l.user == "zephyrproject-rtos" &&
+                    l.repo == "zephyr"))
+            .map(|i| (i.pr, i.clone()))
+            .collect();
+
+        // Until BTreemap::info_values() is stable, we need to clone the
+        // items.
+        let prs: Vec<PullRequest> = prs.values().cloned().collect();
+
+        log::info!("Getting {} PRs from github", prs.len());
+        let prs = self.github.clone().bulk_get_pr(&prs).await?;
+        for item in &issues {
             println!("{:?}: {:?}", item.issue.key,
                 item.links.iter().map(|i| i.pr).collect::<Vec<_>>());
-            println!("   {:?}", item.issue.fields.fix_versions);
-
-            // Query github.
-            for link in &item.links {
-                self.github.get_pr(link).await?;
+            println!("    {:?}", item.issue.fields.fix_versions);
+            for pr in &item.links {
+                println!("{:#?}", prs.get(&pr.pr));
             }
         }
         Ok(())

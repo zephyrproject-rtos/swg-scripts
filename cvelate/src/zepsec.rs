@@ -128,7 +128,7 @@ pub struct IssueLinks<'a> {
 }
 
 /// A single github link, decoded.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct PullRequest {
     pub user: String,
     pub repo: String,

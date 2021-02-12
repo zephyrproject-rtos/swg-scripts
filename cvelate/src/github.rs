@@ -4,7 +4,11 @@ use anyhow::Result;
 use config::Config;
 use reqwest::Client;
 use serde::Deserialize;
-use serde_json::Value;
+// use serde_json::Value;
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 use crate::zepsec::PullRequest;
 
@@ -45,7 +49,7 @@ impl Github {
     }
 
     /// Get the basic PR information.
-    pub async fn get_pr(&self, pr: &PullRequest) -> Result<()> {
+    pub async fn get_pr(&self, pr: &PullRequest) -> Result<MergeInfo> {
         let resp = self.client.get(&self.pr_url(pr))
             .basic_auth(&self.auth.login, Some(&self.auth.password))
             .header("Accept", "application/vnd.github+json")
@@ -55,7 +59,28 @@ impl Github {
         // println!("Headers: {:#?}", resp.headers());
         // println!("resp: {:#?}", resp.json::<Value>().await?);
         let info = resp.json::<MergeInfo>().await?;
-        println!("info: {:#?}", info);
-        Ok(())
+        // println!("info: {:#?}", info);
+        Ok(info)
+    }
+
+    /// Perform a bulk query of issues, returning a map of the results.
+    pub async fn bulk_get_pr(self: Arc<Github>, prs: &[PullRequest]) ->
+        Result<HashMap<usize, MergeInfo>>
+    {
+        let children: Vec<_> = prs.iter().map(|key| {
+            let key = key.clone();
+            let gh = self.clone();
+            tokio::spawn(async move {
+                let value = gh.get_pr(&key).await.unwrap();
+                (key.pr, value)
+            })
+        }).collect();
+        let mut result = HashMap::new();
+
+        for child in children {
+            let (key, value) = child.await?;
+            result.insert(key, value);
+        }
+        Ok(result)
     }
 }
