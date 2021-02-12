@@ -3,6 +3,8 @@
 use anyhow::Result;
 use chrono::NaiveDate;
 use config::Config;
+use lazy_static::lazy_static;
+use regex::Regex;
 use reqwest::Client;
 use serde::{Deserialize};
 // use serde_json::Value;
@@ -10,6 +12,8 @@ use std::{
     collections::BTreeMap,
     sync::{Arc, Mutex},
 };
+
+use crate::auth::Auth;
 
 static HOST: &str = "zephyrprojectsec.atlassian.net";
 fn url(cmd: &str) -> String {
@@ -48,12 +52,6 @@ pub struct Info {
 }
 
 #[derive(Debug)]
-struct Auth {
-    login: String,
-    password: String,
-}
-
-#[derive(Debug)]
 pub struct MissingInfo {
     pub key: String,
     pub cve: String,
@@ -69,7 +67,7 @@ pub struct EmbargoInfo {
 #[derive(Debug, Deserialize)]
 pub struct Issue {
     pub fields: SubIssue,
-    key: String,
+    pub key: String,
     #[serde(rename = "self")]
     url: String,
 }
@@ -122,11 +120,26 @@ struct LinkObject {
     url: String,
 }
 
+/// An issue with associated links.
+#[derive(Debug)]
+pub struct IssueLinks<'a> {
+    pub issue: &'a Issue,
+    pub links: Vec<PullRequest>,
+}
+
+/// A single github link, decoded.
+#[derive(Debug)]
+pub struct PullRequest {
+    pub user: String,
+    pub repo: String,
+    pub pr: usize,
+}
+
 impl Info {
     // Load the basic info from JIRA.  This fills in everything that can be
     // determined by a single search query.
     pub async fn load(config: &Config) -> Result<Info> {
-        let auth = Auth::from_config(config)?;
+        let auth = Auth::from_config(config, "zepsec")?;
         let client = Client::new();
         let mut result = vec![];
         let mut start = 1;
@@ -192,6 +205,16 @@ impl Info {
         Ok(v)
     }
 
+    /// Get a list of github links.
+    pub async fn get_github_links(&self, key: &str) -> Result<Vec<PullRequest>> {
+        let links = self.get_link(key).await?;
+        Ok(links
+            .into_iter()
+            .flat_map(|l| PullRequest::parse(&l))
+            // .filter(|l| l.starts_with("https://github.com"))
+            .collect())
+    }
+
     /// Look up all of the issue links, in parallel.  This needs the Info
     /// as an Arc so that the results can be returned.
     pub async fn concurrent_get_links(self: Arc<Info>) -> Result<()> {
@@ -245,12 +268,39 @@ impl Info {
 
         Ok(result)
     }
+
+    /// Retrieve all issues that are considered open, and have at least one
+    /// remote link to a github issue.
+    pub async fn issues_with_prs<'a>(&'a self) -> Result<Vec<IssueLinks<'a>>> {
+        let mut result = vec![];
+        for issue in self.issues.values() {
+            if issue.fields.status.name == "Rejected" {
+                continue;
+            }
+            let links = self.get_github_links(&issue.key).await?;
+            if links.len() == 0 {
+                continue;
+            }
+
+            result.push(IssueLinks { issue, links });
+        }
+        Ok(result)
+    }
 }
 
-impl Auth {
-    fn from_config(config: &Config) -> Result<Auth> {
-        let login = config.get_str("zepsec.login")?;
-        let password = config.get_str("zepsec.password")?;
-        Ok(Auth { login, password })
+lazy_static! {
+    static ref PR_RE: Regex =
+        Regex::new(r"^https://github.com/([^/]+)/([^/]+)/pull/(\d+)$").unwrap();
+}
+
+impl PullRequest {
+    fn parse(url: &str) -> Option<PullRequest> {
+        PR_RE.captures(url).map(|cap| {
+            PullRequest {
+                user: cap.get(1).unwrap().as_str().to_string(),
+                repo: cap.get(2).unwrap().as_str().to_string(),
+                pr: cap.get(3).unwrap().as_str().parse().unwrap(),
+            }
+        })
     }
 }

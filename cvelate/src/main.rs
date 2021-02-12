@@ -5,6 +5,7 @@ use config::Config;
 use crate::cve::{
     Cves, Cve,
 };
+use crate::github::Github;
 use crate::rnotes::Rnotes;
 use prettytable::{
     format,
@@ -16,7 +17,9 @@ use std::{
     sync::Arc,
 };
 
+mod auth;
 mod cve;
+mod github;
 mod report;
 mod rnotes;
 mod zepsec;
@@ -24,6 +27,8 @@ mod zepsec;
 struct FullInfo {
     cves: Cves,
     info: Arc<zepsec::Info>,
+    #[allow(unused)]
+    github: Github,
 }
 
 #[tokio::main]
@@ -50,6 +55,7 @@ async fn main() -> Result<()> {
         "missing" => FullInfo::new(&config).await?.missing_embargo().await?,
         "embargo" => FullInfo::new(&config).await?.embargo().await?,
         "rnotes" => FullInfo::new(&config).await?.rnotes().await?,
+        "merged" => FullInfo::new(&config).await?.merged().await?,
         cmd => {
             log::error!("Unknown command: {:?}", cmd);
             return Ok(());
@@ -93,7 +99,8 @@ impl FullInfo {
         let info = Arc::new(zepsec::Info::load(config).await?);
         log::info!("Loading JIRA remotelinks");
         info.clone().concurrent_get_links().await?;
-        Ok(FullInfo{ cves, info })
+        let github = Github::new(config)?;
+        Ok(FullInfo{ cves, info, github })
     }
 
     async fn cve_report(&self) -> Result<()> {
@@ -190,6 +197,29 @@ impl FullInfo {
             }
         }
 
+        Ok(())
+    }
+
+    /// Generate a report of active issues (ones with links to github) that
+    /// and compare what JIRA thinks about "fixed version", with where they
+    /// were actually merged.
+    async fn merged(&self) -> Result<()> {
+        for item in self.info.issues_with_prs().await? {
+            if item.links.iter().any(|i|
+                i.user != "zephyrproject-rtos" ||
+                i.repo != "zephyr")
+            {
+                log::error!("Unsupported project for github link {:?}", item.links);
+            }
+            println!("{:?}: {:?}", item.issue.key,
+                item.links.iter().map(|i| i.pr).collect::<Vec<_>>());
+            println!("   {:?}", item.issue.fields.fix_versions);
+
+            // Query github.
+            for link in &item.links {
+                self.github.get_pr(link).await?;
+            }
+        }
         Ok(())
     }
 }
