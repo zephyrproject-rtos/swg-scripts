@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "2.33", features = ["yaml"] }
 config = { version = "0.10", features = ["toml"] }
 dirs = "1"
 env_logger = "0.8"

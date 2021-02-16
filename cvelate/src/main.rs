@@ -6,6 +6,10 @@ use crate::cve::{
 };
 use crate::github::Github;
 use crate::rnotes::Rnotes;
+use clap::{
+    App,
+    load_yaml,
+};
 use crate::zepsec::PullRequest;
 use chrono::Local;
 use config::Config;
@@ -42,56 +46,25 @@ async fn main() -> Result<()> {
     // logging.
     env_logger::init();
 
+    let yaml = load_yaml!("cli.yaml");
+    let matches = App::from_yaml(yaml).get_matches();
+
     // Load the config data.
     let config = load_config()?;
 
-    // For now, expect a single argument, which is a command to perform.
-    let args: Vec<_> = std::env::args().collect();
-    if args.len() != 2 {
-        log::error!("Usage: {} command", args[0]);
-        log::error!("");
-        log::error!("Commands:");
-        log::error!("    cve - Report on CVE status.");
-        return Ok(());
+    if let Some(_) = matches.subcommand_matches("cve") {
+        FullInfo::new(&config).await?.cve_report().await?;
+    } else if let Some(_) = matches.subcommand_matches("missing") {
+        FullInfo::new(&config).await?.missing_embargo().await?;
+    } else if let Some(_) = matches.subcommand_matches("embargo") {
+        FullInfo::new(&config).await?.embargo().await?;
+    } else if let Some(_) = matches.subcommand_matches("rnotes") {
+        FullInfo::new(&config).await?.rnotes().await?;
+    } else if let Some(_) = matches.subcommand_matches("merged") {
+        FullInfo::new(&config).await?.merged().await?;
+    } else {
+        println!("Usage: {}", matches.usage());
     }
-
-    match args[1].as_str() {
-        "cve" => FullInfo::new(&config).await?.cve_report().await?,
-        "missing" => FullInfo::new(&config).await?.missing_embargo().await?,
-        "embargo" => FullInfo::new(&config).await?.embargo().await?,
-        "rnotes" => FullInfo::new(&config).await?.rnotes().await?,
-        "merged" => FullInfo::new(&config).await?.merged().await?,
-        cmd => {
-            log::error!("Unknown command: {:?}", cmd);
-            return Ok(());
-        }
-    }
-
-    /*
-    // CVE fetch.
-    if false {
-        let data = Cves::fetch().await?;
-        println!("data: {:#?}", data);
-    }
-
-    // Query JIRA.
-    if false {
-        let info = Arc::new(zepsec::Info::load().await?);
-        println!("issues: {}", info.issues.len());
-        // println!("issues: {:#?}", info.issues);
-
-        info.clone().concurrent_get_links().await?;
-        for key in info.issues.keys() {
-            let link = info.get_link(key).await?;
-            println!("2nd: {:?}: {:?}", key, link);
-        }
-    }
-
-    // Report
-    if true {
-        report::make()?;
-    }
-    */
 
     Ok(())
 }
