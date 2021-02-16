@@ -50,7 +50,8 @@ async fn main() -> Result<()> {
     let matches = App::from_yaml(yaml).get_matches();
 
     // Load the config data.
-    let config = load_config()?;
+    let cfile = matches.value_of("config").unwrap_or(".cvelate");
+    let config = load_config(cfile)?;
 
     if let Some(_) = matches.subcommand_matches("cve") {
         FullInfo::new(&config).await?.cve_report().await?;
@@ -244,10 +245,10 @@ impl FullInfo {
     }
 }
 
-fn load_config() -> Result<Config> {
+fn load_config(name: &str) -> Result<Config> {
     let mut settings = Config::default();
     settings
-        .merge(config::File::with_name(".cvelate"))?
+        .merge(config::File::with_name(name))?
         .merge(config::Environment::with_prefix("CVELATE"))?;
 
     Ok(settings)
