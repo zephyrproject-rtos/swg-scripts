@@ -6,11 +6,14 @@ use config::Config;
 use lazy_static::lazy_static;
 use regex::Regex;
 use reqwest::Client;
-use serde::{Deserialize};
+use serde::Deserialize;
 // use serde_json::Value;
 use std::{
     collections::BTreeMap,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 use crate::auth::Auth;
@@ -145,12 +148,14 @@ impl Info {
         let mut start = 1;
         loop {
             let start_text = format!("{}", start);
-            let mut resp = client.get(&url("search"))
+            let mut resp = client
+                .get(&url("search"))
                 .basic_auth(&auth.login, Some(&auth.password))
                 .query(&[("jql", "project=\"ZEPSEC\""), ("startAt", &start_text)])
                 .send()
                 .await?
-                .json::<SearchResult>().await?;
+                .json::<SearchResult>()
+                .await?;
             let count = resp.issues.len();
             result.append(&mut resp.issues);
             // println!("count: {}, max: {}, total: {}", count, resp.max_results, resp.total);
@@ -175,11 +180,16 @@ impl Info {
 
     // Lookup the external links for a single issue.
     async fn lookup_link(&self, key: &str) -> Result<Vec<String>> {
-        let resp = self.client.as_ref().unwrap().get(&url(&format!("issue/{}/remotelink", key)))
+        let resp = self
+            .client
+            .as_ref()
+            .unwrap()
+            .get(&url(&format!("issue/{}/remotelink", key)))
             .basic_auth(&self.auth.login, Some(&self.auth.password))
             .send()
             .await?
-            .json::<Vec<LinkOuter>>().await?;
+            .json::<Vec<LinkOuter>>()
+            .await?;
         Ok(resp.into_iter().map(|l| l.object.url).collect())
     }
 
@@ -218,13 +228,15 @@ impl Info {
     /// Look up all of the issue links, in parallel.  This needs the Info
     /// as an Arc so that the results can be returned.
     pub async fn concurrent_get_links(self: Arc<Info>) -> Result<()> {
-        let children: Vec<_> = self.issues.keys().map(|key| {
-            let key = key.clone();
-            let info = self.clone();
-            tokio::spawn(async move {
-                info.get_link(&key).await
+        let children: Vec<_> = self
+            .issues
+            .keys()
+            .map(|key| {
+                let key = key.clone();
+                let info = self.clone();
+                tokio::spawn(async move { info.get_link(&key).await })
             })
-        }).collect();
+            .collect();
 
         for child in children {
             let _ = child.await?;
@@ -234,7 +246,9 @@ impl Info {
 
     /// Retrieve all issues that have a CVE but don't have an embargo date.
     pub fn missing_embargo(&self) -> Result<Vec<MissingInfo>> {
-        let mut result: Vec<_> = self.issues.values()
+        let mut result: Vec<_> = self
+            .issues
+            .values()
             .filter(|issue| issue.fields.cve.is_some() && issue.fields.embargo_date.is_none())
             .map(|issue| MissingInfo {
                 key: issue.key.clone(),
@@ -252,7 +266,9 @@ impl Info {
 
     /// Retrieve all issues that have a CVE with an embargo date.
     pub fn embargo_dates(&self) -> Result<Vec<EmbargoInfo>> {
-        let mut result: Vec<_> = self.issues.values()
+        let mut result: Vec<_> = self
+            .issues
+            .values()
             .filter(|issue| issue.fields.cve.is_some() && issue.fields.embargo_date.is_some())
             .map(|issue| EmbargoInfo {
                 key: issue.key.clone(),
@@ -295,12 +311,10 @@ lazy_static! {
 
 impl PullRequest {
     fn parse(url: &str) -> Option<PullRequest> {
-        PR_RE.captures(url).map(|cap| {
-            PullRequest {
-                user: cap.get(1).unwrap().as_str().to_string(),
-                repo: cap.get(2).unwrap().as_str().to_string(),
-                pr: cap.get(3).unwrap().as_str().parse().unwrap(),
-            }
+        PR_RE.captures(url).map(|cap| PullRequest {
+            user: cap.get(1).unwrap().as_str().to_string(),
+            repo: cap.get(2).unwrap().as_str().to_string(),
+            pr: cap.get(3).unwrap().as_str().parse().unwrap(),
         })
     }
 }

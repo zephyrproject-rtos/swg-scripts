@@ -20,7 +20,7 @@ static HOST: &str = "api.github.com";
 #[derive(Debug)]
 pub struct Github {
     client: Client,
-    auth: Auth
+    auth: Auth,
 }
 
 /// Simple information about what has merged.
@@ -44,16 +44,23 @@ impl Github {
 
     /// Synthesize a url for a pr.
     fn pr_url(&self, pr: &PullRequest) -> String {
-        format!("https://api.github.com/repos/{}/{}/pulls/{}",
-            pr.user, pr.repo, pr.pr)
+        format!(
+            "https://api.github.com/repos/{}/{}/pulls/{}",
+            pr.user, pr.repo, pr.pr
+        )
     }
 
     /// Get the basic PR information.
     pub async fn get_pr(&self, pr: &PullRequest) -> Result<MergeInfo> {
-        let resp = self.client.get(&self.pr_url(pr))
+        let resp = self
+            .client
+            .get(&self.pr_url(pr))
             .basic_auth(&self.auth.login, Some(&self.auth.password))
             .header("Accept", "application/vnd.github+json")
-            .header("User-Agent", "https://github.com/zephyrproject-rtos/swg-tools")
+            .header(
+                "User-Agent",
+                "https://github.com/zephyrproject-rtos/swg-tools",
+            )
             .send()
             .await?;
         // println!("Headers: {:#?}", resp.headers());
@@ -64,17 +71,21 @@ impl Github {
     }
 
     /// Perform a bulk query of issues, returning a map of the results.
-    pub async fn bulk_get_pr(self: Arc<Github>, prs: &[PullRequest]) ->
-        Result<HashMap<usize, MergeInfo>>
-    {
-        let children: Vec<_> = prs.iter().map(|key| {
-            let key = key.clone();
-            let gh = self.clone();
-            tokio::spawn(async move {
-                let value = gh.get_pr(&key).await.unwrap();
-                (key.pr, value)
+    pub async fn bulk_get_pr(
+        self: Arc<Github>,
+        prs: &[PullRequest],
+    ) -> Result<HashMap<usize, MergeInfo>> {
+        let children: Vec<_> = prs
+            .iter()
+            .map(|key| {
+                let key = key.clone();
+                let gh = self.clone();
+                tokio::spawn(async move {
+                    let value = gh.get_pr(&key).await.unwrap();
+                    (key.pr, value)
+                })
             })
-        }).collect();
+            .collect();
         let mut result = HashMap::new();
 
         for child in children {

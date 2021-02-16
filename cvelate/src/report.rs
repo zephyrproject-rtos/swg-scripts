@@ -2,9 +2,10 @@
 
 use anyhow::Result;
 use prettytable::{
+    cell,
+    row,
     // Cell, Row,
     Table,
-    cell, row,
 };
 
 pub fn make() -> Result<()> {

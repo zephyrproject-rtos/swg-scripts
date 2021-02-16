@@ -12,7 +12,10 @@ use regex::Regex;
 use std::{
     collections::BTreeMap,
     fs::File,
-    io::{BufReader, BufRead},
+    io::{
+        BufRead,
+        BufReader,
+    },
 };
 
 lazy_static! {
@@ -41,12 +44,10 @@ impl CveNum {
     /// Try to decode a CveNumber from a string containing one.  Returns
     /// Some if a valid CVE number was found.
     fn from_line(line: &str) -> Option<CveNum> {
-        CVE_RE.captures(line).map(|cap| {
-            CveNum {
-                year: cap.get(1).unwrap().as_str().parse().unwrap(),
-                number: cap.get(2).unwrap().as_str().parse().unwrap(),
-                extra: "".to_string(),
-            }
+        CVE_RE.captures(line).map(|cap| CveNum {
+            year: cap.get(1).unwrap().as_str().parse().unwrap(),
+            number: cap.get(2).unwrap().as_str().parse().unwrap(),
+            extra: "".to_string(),
         })
     }
 }

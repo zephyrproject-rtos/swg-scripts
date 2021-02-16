@@ -1,7 +1,12 @@
 use anyhow::Result;
-use chrono::{DateTime, Utc};
-use serde::{
-    de::{self, Deserialize, Deserializer},
+use chrono::{
+    DateTime,
+    Utc,
+};
+use serde::de::{
+    self,
+    Deserialize,
+    Deserializer,
 };
 use std::{
     fmt::Display,
@@ -60,17 +65,13 @@ impl Cves {
 
         cmd.stdout(Stdio::piped());
 
-        let mut child = cmd
-            .arg("list")
-            .arg("--raw")
-            .spawn()?;
+        let mut child = cmd.arg("list").arg("--raw").spawn()?;
 
         let mut stdout = child.stdout.take().expect("child set");
 
         // Spawn a child to get the results.
         tokio::spawn(async move {
-            let status = child.wait().await
-                .expect("child error");
+            let status = child.wait().await.expect("child error");
             if !status.success() {
                 log::error!("Error running cve tool: {:?}", status);
             }
@@ -84,9 +85,10 @@ impl Cves {
 }
 
 fn from_str<'de, T, D>(deserializer: D) -> result::Result<T, D::Error>
-    where T: FromStr,
-          T::Err: Display,
-          D: Deserializer<'de>
+where
+    T: FromStr,
+    T::Err: Display,
+    D: Deserializer<'de>,
 {
     let s = String::deserialize(deserializer)?;
     T::from_str(&s).map_err(de::Error::custom)

@@ -1,23 +1,23 @@
 use anyhow::Result;
 
-use chrono::Local;
-use config::Config;
 use crate::cve::{
-    Cves, Cve,
+    Cve,
+    Cves,
 };
 use crate::github::Github;
 use crate::rnotes::Rnotes;
 use crate::zepsec::PullRequest;
-use git2::{
-    Repository,
-};
+use chrono::Local;
+use config::Config;
+use git2::Repository;
 use prettytable::{
+    cell,
     format,
+    row,
     Table,
-    cell, row,
 };
 use std::{
-    collections::{BTreeMap},
+    collections::BTreeMap,
     sync::Arc,
 };
 
@@ -106,7 +106,12 @@ impl FullInfo {
         info.clone().concurrent_get_links().await?;
         let github = Arc::new(Github::new(config)?);
         let git = Repository::init(config.get_str("zephyr.repo")?)?;
-        Ok(FullInfo{ cves, info, github, git })
+        Ok(FullInfo {
+            cves,
+            info,
+            github,
+            git,
+        })
     }
 
     async fn cve_report(&self) -> Result<()> {
@@ -126,7 +131,9 @@ impl FullInfo {
         let mut past = false;
         let notes = Rnotes::load()?;
 
-        let by_cve: BTreeMap<&str, &Cve> = self.cves.cve_ids
+        let by_cve: BTreeMap<&str, &Cve> = self
+            .cves
+            .cve_ids
             .iter()
             .map(|c| (c.cve_id.as_str(), c))
             .collect();
@@ -136,7 +143,8 @@ impl FullInfo {
         tab.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
         tab.set_titles(row!["Issue", "Embargo", "State", "CVE", "rnotes"]);
         for emb in &embargo {
-            let ent = by_cve.get(emb.cve.as_str())
+            let ent = by_cve
+                .get(emb.cve.as_str())
                 .map(|c| format!("{:?}", c.state))
                 .unwrap_or_else(|| "*None*".to_string());
 
@@ -182,13 +190,18 @@ impl FullInfo {
                 println!("");
 
                 // First link is to the CVE database itself.
-                println!("- `{} <https://cve.mitre.org/cgi-bin/cvename.cgi?name={}>`_",
-                    emb.cve, emb.cve);
+                println!(
+                    "- `{} <https://cve.mitre.org/cgi-bin/cvename.cgi?name={}>`_",
+                    emb.cve, emb.cve
+                );
                 println!("");
 
                 // Second link is to the ZEPSEC bug tracker.
                 println!("- `Zephyr project bug tracker {}", emb.key);
-                println!("  <https://zephyrprojectsec.atlassian.net/browse/{}>`_", emb.key);
+                println!(
+                    "  <https://zephyrprojectsec.atlassian.net/browse/{}>`_",
+                    emb.key
+                );
                 println!("");
 
                 // Find all of the github links, and figure out what branch
@@ -212,10 +225,13 @@ impl FullInfo {
     async fn merged(&self) -> Result<()> {
         let issues = self.info.issues_with_prs().await?;
         // Collect all of the github PRs.
-        let prs: BTreeMap<_, _> = issues.iter()
-            .flat_map(|i| i.links.iter().filter(|l|
-                    l.user == "zephyrproject-rtos" &&
-                    l.repo == "zephyr"))
+        let prs: BTreeMap<_, _> = issues
+            .iter()
+            .flat_map(|i| {
+                i.links
+                    .iter()
+                    .filter(|l| l.user == "zephyrproject-rtos" && l.repo == "zephyr")
+            })
             .map(|i| (i.pr, i.clone()))
             .collect();
 
@@ -226,8 +242,11 @@ impl FullInfo {
         log::info!("Getting {} PRs from github", prs.len());
         let prs = self.github.clone().bulk_get_pr(&prs).await?;
         for item in &issues {
-            println!("{:?}: {:?}", item.issue.key,
-                item.links.iter().map(|i| i.pr).collect::<Vec<_>>());
+            println!(
+                "{:?}: {:?}",
+                item.issue.key,
+                item.links.iter().map(|i| i.pr).collect::<Vec<_>>()
+            );
             println!("    {:?}", item.issue.fields.fix_versions);
             for pr in &item.links {
                 // println!("{:#?}", prs.get(&pr.pr));
