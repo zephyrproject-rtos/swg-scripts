@@ -12,6 +12,7 @@ chrono = { version = "0.4", features = ["serde"] }
 config = { version = "0.10", features = ["toml"] }
 dirs = "1"
 env_logger = "0.8"
+git2 = "0.13"
 lazy_static = "1.4"
 log = "0.4"
 prettytable-rs = "0.8"

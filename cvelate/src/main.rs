@@ -8,6 +8,9 @@ use crate::cve::{
 use crate::github::Github;
 use crate::rnotes::Rnotes;
 use crate::zepsec::PullRequest;
+use git2::{
+    Repository,
+};
 use prettytable::{
     format,
     Table,
@@ -30,6 +33,7 @@ struct FullInfo {
     info: Arc<zepsec::Info>,
     #[allow(unused)]
     github: Arc<Github>,
+    git: Repository,
 }
 
 #[tokio::main]
@@ -101,7 +105,8 @@ impl FullInfo {
         log::info!("Loading JIRA remotelinks");
         info.clone().concurrent_get_links().await?;
         let github = Arc::new(Github::new(config)?);
-        Ok(FullInfo{ cves, info, github })
+        let git = Repository::init(config.get_str("zephyr.repo")?)?;
+        Ok(FullInfo{ cves, info, github, git })
     }
 
     async fn cve_report(&self) -> Result<()> {
@@ -225,7 +230,22 @@ impl FullInfo {
                 item.links.iter().map(|i| i.pr).collect::<Vec<_>>());
             println!("    {:?}", item.issue.fields.fix_versions);
             for pr in &item.links {
-                println!("{:#?}", prs.get(&pr.pr));
+                // println!("{:#?}", prs.get(&pr.pr));
+
+                // Try to lookup the commit.
+                if let Some(minfo) = prs.get(&pr.pr) {
+                    if !minfo.merged {
+                        continue;
+                    }
+
+                    let oid = git2::Oid::from_str(&minfo.merge_commit_sha)?;
+                    // TODO: Handle this failing.
+                    let commit = self.git.find_object(oid, Some(git2::ObjectType::Commit))?;
+                    let opts = git2::DescribeOptions::new();
+                    // opts.describe_all();
+                    let desc = commit.describe(&opts)?;
+                    println!("commit: {:?}", desc.format(None));
+                }
             }
         }
         Ok(())
