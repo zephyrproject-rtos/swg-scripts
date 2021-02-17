@@ -25,11 +25,18 @@ impl CmdRepository {
     }
 
     pub async fn tag_contains(&self, sha: &str) -> Result<Vec<String>> {
+        self.thing_contains(&["tag", "--contains", sha]).await
+    }
+
+    pub async fn branch_contains(&self, sha: &str) -> Result<Vec<String>> {
+        self.thing_contains(&["branch", "-a", "--contains", sha,
+            "origin/master", "origin/main", "origin/v*-branch"]).await
+    }
+
+    pub async fn thing_contains(&self, args: &[&str]) -> Result<Vec<String>> {
         let mut cmd = Command::new("git");
         cmd.stdout(Stdio::piped());
-        cmd.arg("tag");
-        cmd.arg("--contains");
-        cmd.arg(sha);
+        cmd.args(args);
         cmd.current_dir(&self.0);
 
         let mut child = cmd.spawn()?;

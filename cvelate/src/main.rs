@@ -274,6 +274,14 @@ impl FullInfo {
                     if let Some(ver) = versions.iter().next() {
                         println!("   {:-6} merged: v{}", pr.pr, ver);
                     }
+
+                    // Lookup what branches contain this (but only if there
+                    // are no tags.
+                    if versions.len() == 0 {
+                        let contains = self.cmd_git.branch_contains(&minfo.merge_commit_sha).await?;
+                        println!("branches: {:?}", contains);
+                    }
+
                     // println!("versions: {:?}", versions);
 
                     /*
