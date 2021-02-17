@@ -4,6 +4,7 @@ use crate::cve::{
     Cve,
     Cves,
 };
+use crate::git::CmdRepository;
 use crate::github::Github;
 use crate::rnotes::Rnotes;
 use clap::{
@@ -20,6 +21,8 @@ use prettytable::{
     row,
     Table,
 };
+use semver::Version;
+// use regex::Regex;
 use std::{
     collections::BTreeMap,
     sync::Arc,
@@ -27,6 +30,7 @@ use std::{
 
 mod auth;
 mod cve;
+mod git;
 mod github;
 mod report;
 mod rnotes;
@@ -37,7 +41,9 @@ struct FullInfo {
     info: Arc<zepsec::Info>,
     #[allow(unused)]
     github: Arc<Github>,
+    #[allow(dead_code)]
     git: Repository,
+    cmd_git: CmdRepository,
 }
 
 #[tokio::main]
@@ -80,11 +86,13 @@ impl FullInfo {
         info.clone().concurrent_get_links().await?;
         let github = Arc::new(Github::new(config)?);
         let git = Repository::init(config.get_str("zephyr.repo")?)?;
+        let cmd_git = CmdRepository::new(&git);
         Ok(FullInfo {
             cves,
             info,
             github,
             git,
+            cmd_git,
         })
     }
 
@@ -221,7 +229,11 @@ impl FullInfo {
                 item.issue.key,
                 item.links.iter().map(|i| i.pr).collect::<Vec<_>>()
             );
-            println!("    {:?}", item.issue.fields.fix_versions);
+            println!("      fix (JIRA): {:?}",
+                item.issue.fields.fix_versions
+                    .iter()
+                    .map(|v| &v.name)
+                    .collect::<Vec<_>>());
             for pr in &item.links {
                 // println!("{:#?}", prs.get(&pr.pr));
 
@@ -231,13 +243,49 @@ impl FullInfo {
                         continue;
                     }
 
+                    // Look up what tags contain this.
+                    let contains = self.cmd_git.tag_contains(&minfo.merge_commit_sha).await?;
+                    // println!("contains: {:?}", contains);
+                    let mut versions = vec![];
+                    for tag in &contains {
+                        // // The tags start with either "v" or "zephyr-v",
+                        // which we need to remove.
+                        let tag = if tag.starts_with("v") {
+                            &tag[1..]
+                        } else if tag.starts_with("zephyr-v") {
+                            &tag[8..]
+                        } else {
+                            tag
+                        };
+
+                        // Skip any that have a pre or build present.
+                        if let Ok(ver) = Version::parse(tag) {
+                            if ver.pre.len() > 0 || ver.build.len() > 0 {
+                                continue;
+                            }
+                            // println!("  {:?}", ver);
+                            versions.push(ver);
+                        } else {
+                            println!("  Unable to parse: {:?}", tag);
+                        }
+                    }
+
+                    versions.sort();
+                    if let Some(ver) = versions.iter().next() {
+                        println!("   {:-6} merged: v{}", pr.pr, ver);
+                    }
+                    // println!("versions: {:?}", versions);
+
+                    /*
                     let oid = git2::Oid::from_str(&minfo.merge_commit_sha)?;
                     // TODO: Handle this failing.
                     let commit = self.git.find_object(oid, Some(git2::ObjectType::Commit))?;
+                    // println!("commit: {:?}", commit);
                     let opts = git2::DescribeOptions::new();
                     // opts.describe_all();
                     let desc = commit.describe(&opts)?;
-                    println!("commit: {:?}", desc.format(None));
+                    // println!("commit: {:?}", desc.format(None));
+                    */
                 }
             }
         }
