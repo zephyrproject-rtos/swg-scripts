@@ -300,6 +300,7 @@ impl Info {
 
             result.push(IssueLinks { issue, links });
         }
+        result.sort_by_key(|il| keyvalue(&il.issue.key));
         Ok(result)
     }
 }
@@ -317,4 +318,12 @@ impl PullRequest {
             pr: cap.get(3).unwrap().as_str().parse().unwrap(),
         })
     }
+}
+
+// Decompose a JIRA issue number so that numbers are sorted properly.
+fn keyvalue(text: &str) -> (&str, usize) {
+    let fields: Vec<&str> = text.split('-').collect();
+    assert_eq!(fields.len(), 2);
+    let num: usize = fields[1].parse().expect("JIRA issue to be AAAAA-nn");
+    (fields[0], num)
 }
