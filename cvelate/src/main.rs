@@ -272,7 +272,7 @@ impl FullInfo {
 
                     versions.sort();
                     if let Some(ver) = versions.iter().next() {
-                        println!("   {:-6} merged: v{}", pr.pr, ver);
+                        println!("             {:-6} merged: v{}", pr.pr, ver);
                     }
 
                     // Lookup what branches contain this (but only if there
