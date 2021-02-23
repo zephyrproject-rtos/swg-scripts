@@ -151,7 +151,9 @@ impl Info {
             let mut resp = client
                 .get(&url("search"))
                 .basic_auth(&auth.login, Some(&auth.password))
-                .query(&[("jql", "project=\"ZEPSEC\""), ("startAt", &start_text)])
+                .query(&[("jql", "project=\"ZEPSEC\""), ("startAt", &start_text),
+                    ("fields", "description,summary,customfield_10035,customfield_10051,versions,fixVersions,status,subtasks"),
+                ])
                 .send()
                 .await?
                 .json::<SearchResult>()
