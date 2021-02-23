@@ -69,6 +69,8 @@ async fn main() -> Result<()> {
         FullInfo::new(&config).await?.rnotes().await?;
     } else if let Some(_) = matches.subcommand_matches("merged") {
         FullInfo::new(&config).await?.merged().await?;
+    } else if let Some(_) = matches.subcommand_matches("debug-query") {
+        zepsec::debug_load(&config).await?;
     } else {
         println!("Usage: {}", matches.usage());
     }

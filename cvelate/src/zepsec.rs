@@ -10,6 +10,7 @@ use serde::Deserialize;
 // use serde_json::Value;
 use std::{
     collections::BTreeMap,
+    fs::File,
     sync::{
         Arc,
         Mutex,
@@ -136,6 +137,30 @@ pub struct PullRequest {
     pub user: String,
     pub repo: String,
     pub pr: usize,
+}
+
+/// For debugging, query and write the json data to a file.
+pub async fn debug_load(config: &Config) -> Result<()> {
+    let auth = Auth::from_config(config, "zepsec")?;
+    let client = Client::new();
+    let start = 1;
+    let mut out = File::create("zepsec-debug.json")?;
+    loop {
+        let start_text = format!("{}", start);
+        let resp = client
+            .get(&url("search"))
+            .basic_auth(&auth.login, Some(&auth.password))
+            .query(&[("jql", "project=\"ZEPSEC\""), ("startAt", &start_text),
+                // ("expand", "changelog"),
+                // ("fields", "comments"),
+            ])
+            .send().await?
+            .json::<serde_json::Value>().await?;
+        serde_json::to_writer_pretty(&mut out, &resp)?;
+        break;
+    }
+
+    Ok(())
 }
 
 impl Info {

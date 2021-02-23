@@ -20,3 +20,5 @@ subcommands:
       about: Generate release notes
   - merged:
       about: Determine what changes need a fixed version based on being merged.
+  - debug-query:
+      about: Run a debug query to JIRA and dump the output.
