@@ -35,6 +35,17 @@ struct SearchResult {
     total: usize,
 }
 
+// Query type for "comment"
+#[derive(Debug, Deserialize)]
+struct CommentResult {
+    comments: Vec<Comment>,
+    #[serde(rename = "maxResults")]
+    max_results: usize,
+    #[serde(rename = "startAt")]
+    start_at: usize,
+    total: usize,
+}
+
 #[derive(Debug)]
 pub struct Info {
     /// The client, so additional queries can be made using the same
@@ -53,6 +64,9 @@ pub struct Info {
     /// from key to link info (which are Strings currently), will be filled
     /// with a vec of the links.
     links: Arc<Mutex<BTreeMap<String, Vec<String>>>>,
+
+    /// Comments are looked up asynchronously.
+    comments: Arc<Mutex<BTreeMap<String, Vec<Comment>>>>,
 }
 
 #[derive(Debug)]
@@ -91,6 +105,20 @@ pub struct SubIssue {
     pub fix_versions: Vec<Version>,
     status: Status,
     subtasks: Vec<Subtask>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct Comment {
+    pub author: Author,
+    pub body: String,
+    pub created: String,
+}
+
+// Enough information about the author
+#[derive(Clone, Debug, Deserialize)]
+pub struct Author {
+    #[serde(rename = "displayName")]
+    pub display_name: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -202,6 +230,7 @@ impl Info {
             client: Some(client),
             issues: result.into_iter().map(|i| (i.key.clone(), i)).collect(),
             links: Arc::new(Mutex::new(BTreeMap::new())),
+            comments: Arc::new(Mutex::new(BTreeMap::new())),
         })
     }
 
@@ -330,6 +359,73 @@ impl Info {
         result.sort_by_key(|il| keyvalue(&il.issue.key));
         Ok(result)
     }
+
+    /// Retrieve the comments associated with the given issue.
+    async fn fetch_comments(&self, key: &str) -> Result<Vec<Comment>> {
+        let mut result = vec![];
+        let mut start = 0;
+        loop {
+            let start_text = format!("{}", start);
+            let mut resp = self.client.as_ref().unwrap()
+                .get(&url(&format!("issue/{}/comment", key)))
+                .basic_auth(&self.auth.login, Some(&self.auth.password))
+                .query(&[("startAt", &start_text)])
+                .send().await?
+                .json::<CommentResult>().await?;
+            let count = resp.comments.len();
+            result.append(&mut resp.comments);
+            start += count;
+
+            if count < resp.max_results {
+                break;
+            }
+        }
+        Ok(result)
+    }
+
+    /// Pull in the comments for all issues.
+    pub async fn fetch_all_comments(self: Arc<Info>) -> Result<()> {
+        let children: Vec<_> = self
+            .issues
+            .keys()
+            .map(|key| {
+                let key = key.clone();
+                let info = self.clone();
+                tokio::spawn(async move {
+                    match info.fetch_comments(&key).await {
+                        Ok(comments) => {
+                            info.comments.lock().unwrap().insert(key, comments);
+                        }
+                        Err(e) => log::error!("Error fetching comments: {:?}", e),
+                    }
+                })
+            })
+            .collect();
+
+        // Run all of the queries to completion.
+        for child in children {
+            let _ = child.await?;
+        }
+
+        Ok(())
+    }
+
+    /// Retrieve the comments for a given issue.  If `fetch_all_comments`
+    /// has been run, this should return quickly, otherwise, it will
+    /// involve a query to JIRA.  Note that the comments will be cloned for
+    /// the return.
+    pub async fn get_comments(&self, key: &str) -> Result<Vec<Comment>> {
+        if let Some(v) = self.comments.lock().unwrap().get(key) {
+            return Ok(v.to_vec());
+        }
+
+        let v = self.fetch_comments(key).await?;
+
+        // The lock is released, but multiple fetches should return the
+        // same data.
+        self.comments.lock().unwrap().insert(key.into(), v.clone());
+        Ok(v)
+    }
 }
 
 lazy_static! {
@@ -344,6 +440,34 @@ impl PullRequest {
             repo: cap.get(2).unwrap().as_str().to_string(),
             pr: cap.get(3).unwrap().as_str().parse().unwrap(),
         })
+    }
+
+    pub fn url(&self) -> String {
+        format!("https://github.com/{}/{}/pull/{}", self.user, self.repo, self.pr)
+    }
+}
+
+impl SubIssue {
+    /// Represent the fix versions in a human readable manner.
+    pub fn clean_fix_versions(&self) -> String {
+        let mut result = String::new();
+
+        for pos in 0..self.fix_versions.len() {
+            if pos > 0 {
+                result.push_str(", ");
+            }
+            if pos > 0 && pos == self.fix_versions.len() - 1 {
+                // Insert Oxford comma debate here.
+                result.push_str("and ");
+            }
+            result.push_str(&self.fix_versions[pos].name);
+        }
+
+        if result.is_empty() {
+            result.push_str("none");
+        }
+
+        result
     }
 }
 

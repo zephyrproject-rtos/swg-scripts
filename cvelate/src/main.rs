@@ -36,6 +36,8 @@ mod report;
 mod rnotes;
 mod zepsec;
 
+static ZEPSEC_URL: &'static str = "https://zephyrprojectsec.atlassian.net/browse";
+
 struct FullInfo {
     cves: Cves,
     info: Arc<zepsec::Info>,
@@ -69,6 +71,8 @@ async fn main() -> Result<()> {
         FullInfo::new(&config).await?.rnotes().await?;
     } else if let Some(_) = matches.subcommand_matches("merged") {
         FullInfo::new(&config).await?.merged().await?;
+    } else if let Some(_) = matches.subcommand_matches("alerts") {
+        FullInfo::new(&config).await?.alerts().await?;
     } else if let Some(_) = matches.subcommand_matches("debug-query") {
         zepsec::debug_load(&config).await?;
     } else {
@@ -297,6 +301,54 @@ impl FullInfo {
                     // println!("commit: {:?}", desc.format(None));
                     */
                 }
+            }
+        }
+        Ok(())
+    }
+
+    /// Generate a report of alerts that need to be sent.
+    async fn alerts(&self) -> Result<()> {
+        self.info.clone().fetch_all_comments().await?;
+        /*
+        let mut count = 0;
+        for key in self.info.issues.keys() {
+            let cblock = self.info.get_comments(key).await?;
+            count += cblock.len();
+        }
+        */
+
+        let embargo = self.info.embargo_dates()?;
+        let now = Local::now().naive_local().date();
+
+        for emb in &embargo {
+            if emb.embargo_date < now {
+                // Skip issues that have already passed embargo.
+                continue;
+            }
+
+            /* TODO: figure out state from comments. */
+
+            let issue = &self.info.issues[&emb.key];
+            println!("## CVE {}: {}", emb.cve, issue.fields.summary);
+            println!("");
+            println!("- [Zephyr tracking {}]({}/{})", emb.key, ZEPSEC_URL, emb.key);
+            println!("- Embargo: {}", emb.embargo_date);
+            println!("");
+            if issue.fields.fix_versions.len() == 0 {
+                // TODO: Find links and post.
+                println!("Fixes have not been released");
+            } else {
+                println!("Fixes have been released in {}", issue.fields.clean_fix_versions());
+            }
+            println!("");
+            let links = self.info.get_github_links(&emb.key).await?;
+            if !links.is_empty() {
+                println!("The issue is addressed in the following pull requests");
+                println!("");
+                for link in &links {
+                    println!("- [#{}]({})", link.pr, link.url());
+                }
+                println!("");
             }
         }
         Ok(())
