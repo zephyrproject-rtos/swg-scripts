@@ -170,7 +170,7 @@ impl Info {
         let auth = Auth::from_config(config, "zepsec")?;
         let client = Client::new();
         let mut result = vec![];
-        let mut start = 1;
+        let mut start = 0;
         loop {
             let start_text = format!("{}", start);
             let mut resp = client
