@@ -350,6 +350,20 @@ impl FullInfo {
                 }
                 println!("");
             }
+
+            // Process the subtasks.
+            let mut visited = false;
+            for sub in self.info.subtasks(&emb.key)? {
+                println!("- {}", sub.fields.summary);
+                let links = self.info.get_github_links(&sub.key).await?;
+                for link in &links {
+                    println!("  - [#{}]({})", link.pr, link.url());
+                }
+                visited = true;
+            }
+            if visited {
+                println!("");
+            }
         }
         Ok(())
     }

@@ -1,6 +1,6 @@
 //! Library for queries to Zepsec.
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use chrono::NaiveDate;
 use config::Config;
 use lazy_static::lazy_static;
@@ -414,6 +414,7 @@ impl Info {
     /// has been run, this should return quickly, otherwise, it will
     /// involve a query to JIRA.  Note that the comments will be cloned for
     /// the return.
+    #[allow(dead_code)]
     pub async fn get_comments(&self, key: &str) -> Result<Vec<Comment>> {
         if let Some(v) = self.comments.lock().unwrap().get(key) {
             return Ok(v.to_vec());
@@ -425,6 +426,24 @@ impl Info {
         // same data.
         self.comments.lock().unwrap().insert(key.into(), v.clone());
         Ok(v)
+    }
+
+    /// Get the subtasks associated with a given task.
+    pub fn subtasks(&self, key: &str) -> Result<Vec<&Issue>> {
+        let item = match self.issues.get(key) {
+            Some(item) => item,
+            None => return Err(anyhow!("Issue not found: {}", key)),
+        };
+
+        let mut result = vec![];
+        for sub in &item.fields.subtasks {
+            if let Some(item) = self.issues.get(&sub.key) {
+                result.push(item);
+            } else {
+                log::warn!("Unable to find subtask: {}", sub.key);
+            }
+        }
+        Ok(result)
     }
 }
 
