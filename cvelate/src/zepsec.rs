@@ -97,6 +97,8 @@ pub struct SubIssue {
     #[serde(rename = "customfield_10035")]
     cve: Option<String>,
 
+    issuetype: IssueType,
+
     #[serde(rename = "customfield_10051")]
     embargo_date: Option<NaiveDate>,
 
@@ -119,6 +121,11 @@ pub struct Comment {
 pub struct Author {
     #[serde(rename = "displayName")]
     pub display_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct IssueType {
+    pub name: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -205,7 +212,7 @@ impl Info {
                 .get(&url("search"))
                 .basic_auth(&auth.login, Some(&auth.password))
                 .query(&[("jql", "project=\"ZEPSEC\""), ("startAt", &start_text),
-                    ("fields", "description,summary,customfield_10035,customfield_10051,versions,fixVersions,status,subtasks"),
+                    ("fields", "description,summary,issuetype,customfield_10035,customfield_10051,versions,fixVersions,status,subtasks"),
                 ])
                 .send()
                 .await?
@@ -445,6 +452,28 @@ impl Info {
         }
         Ok(result)
     }
+
+    /// Get reverences to the data, organized by issue, and then by backport.
+    pub fn get_backports(&self) -> Result<Vec<BackPort>> {
+        let mut result: Vec<_> = self.issues.values()
+            .filter(|s| s.fields.issuetype.name == "Bug")
+            .map(|s| BackPort {
+                issue: s,
+                // TODO: The unwrap is unfriendly.
+                backports: self.subtasks(&s.key).unwrap(),
+            })
+            .collect();
+
+        result.sort_by_key(|il| keyvalue(&il.issue.key));
+
+        Ok(result)
+    }
+}
+
+#[derive(Debug)]
+pub struct BackPort<'a> {
+    pub issue: &'a Issue,
+    pub backports: Vec<&'a Issue>,
 }
 
 lazy_static! {

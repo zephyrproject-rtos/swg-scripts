@@ -12,6 +12,8 @@ args:
 subcommands:
   - alerts:
       about: Report on alerts needing to be sent
+  - backports:
+      about: Report on backports and status
   - cve:
       about: Report on states of CVEs
   - missing:

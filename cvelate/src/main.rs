@@ -73,6 +73,8 @@ async fn main() -> Result<()> {
         FullInfo::new(&config).await?.merged().await?;
     } else if let Some(_) = matches.subcommand_matches("alerts") {
         FullInfo::new(&config).await?.alerts().await?;
+    } else if let Some(_) = matches.subcommand_matches("backports") {
+        FullInfo::new(&config).await?.backports().await?;
     } else if let Some(_) = matches.subcommand_matches("debug-query") {
         zepsec::debug_load(&config).await?;
     } else {
@@ -364,6 +366,17 @@ impl FullInfo {
             if visited {
                 println!("");
             }
+        }
+        Ok(())
+    }
+
+    /// Generate a report on issues and backport completion.
+    async fn backports(&self) -> Result<()> {
+        let bps = self.info.get_backports()?;
+        for bp in &bps {
+            println!("{}: {:?}", bp.issue.key,
+                bp.backports.iter().map(|s| &s.key)
+                    .collect::<Vec<_>>());
         }
         Ok(())
     }
