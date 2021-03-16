@@ -373,8 +373,28 @@ impl FullInfo {
     /// Generate a report on issues and backport completion.
     async fn backports(&self) -> Result<()> {
         let bps = self.info.get_backports()?;
+
+        // Scan for backports that don't have An affects-version set.
+        let mut all_bps: Vec<&zepsec::Issue> = bps.iter()
+            .flat_map(|b| b.backports.iter())
+            .cloned()
+            // Don't show the ones that are Public or have been Rejected.
+            // Release ones should move to Public, once the CVE is released.
+            .filter(|b| b.fields.status.name != "Rejected" &&
+                b.fields.status.name != "Public")
+            .collect();
+        all_bps.sort_by_key(|b| zepsec::keyvalue(&b.key));
+
+        println!("---- Backport issue status");
+        for bp in &all_bps {
+            println!("{} {} ({})", bp.key, bp.fields.status,
+                zepsec::SliceFmt(&bp.fields.versions));
+        }
+
+        println!("---- Issues with incorrect backports");
         for bp in &bps {
-            println!("{}: {:?}", bp.issue.key,
+            println!("{} ({}): {:?}", bp.issue.key,
+                zepsec::SliceFmt(&bp.issue.fields.fix_versions),
                 bp.backports.iter().map(|s| &s.key)
                     .collect::<Vec<_>>());
         }

@@ -10,6 +10,7 @@ use serde::Deserialize;
 // use serde_json::Value;
 use std::{
     collections::BTreeMap,
+    fmt,
     fs::File,
     sync::{
         Arc,
@@ -102,10 +103,10 @@ pub struct SubIssue {
     #[serde(rename = "customfield_10051")]
     embargo_date: Option<NaiveDate>,
 
-    versions: Vec<Version>,
+    pub versions: Vec<Version>,
     #[serde(rename = "fixVersions")]
     pub fix_versions: Vec<Version>,
-    status: Status,
+    pub status: Status,
     subtasks: Vec<Subtask>,
 }
 
@@ -134,8 +135,8 @@ pub struct Version {
 }
 
 #[derive(Debug, Deserialize)]
-struct Status {
-    name: String,
+pub struct Status {
+    pub name: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -519,8 +520,42 @@ impl SubIssue {
     }
 }
 
+impl fmt::Display for Status {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name)
+    }
+}
+
+impl fmt::Display for Version {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name)
+    }
+}
+
+// A wrapper to compactly Display vecs.
+pub struct SliceFmt<'a, V>(pub &'a [V]);
+
+impl<'a, V> fmt::Display for SliceFmt<'a, V>
+where V: fmt::Display
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.0.len() == 1 {
+            write!(f, "{}", self.0[0])
+        } else {
+            write!(f, "[")?;
+            for i in 0 .. self.0.len() {
+                if i > 0 {
+                    write!(f, ",")?;
+                }
+                write!(f, "{}", self.0[i])?;
+            }
+            write!(f, "]")
+        }
+    }
+}
+
 // Decompose a JIRA issue number so that numbers are sorted properly.
-fn keyvalue(text: &str) -> (&str, usize) {
+pub fn keyvalue(text: &str) -> (&str, usize) {
     let fields: Vec<&str> = text.split('-').collect();
     assert_eq!(fields.len(), 2);
     let num: usize = fields[1].parse().expect("JIRA issue to be AAAAA-nn");
