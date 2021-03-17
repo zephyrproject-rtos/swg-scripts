@@ -405,9 +405,10 @@ impl FullInfo {
             */
             for bpp in &bp.backports {
                 let status = format!("{}", bpp.fields.status);
-                println!("        {} {:<8} {}",
+                println!("        {} {:<8} af:{} fix:{}",
                     bpp.key,
                     status,
+                    zepsec::SliceFmt(&bpp.fields.versions),
                     zepsec::SliceFmt(&bpp.fields.fix_versions));
             }
         }
