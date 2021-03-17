@@ -393,10 +393,23 @@ impl FullInfo {
 
         println!("---- Issues with incorrect backports");
         for bp in &bps {
-            println!("{} ({}): {:?}", bp.issue.key,
+            println!("{} ({}): {}", bp.issue.key,
                 zepsec::SliceFmt(&bp.issue.fields.fix_versions),
+                bp.issue.fields.cve
+                    .as_ref()
+                    .map(|s| s.as_str())
+                    .unwrap_or("None"));
+            /*
                 bp.backports.iter().map(|s| &s.key)
                     .collect::<Vec<_>>());
+            */
+            for bpp in &bp.backports {
+                let status = format!("{}", bpp.fields.status);
+                println!("        {} {:<8} {}",
+                    bpp.key,
+                    status,
+                    zepsec::SliceFmt(&bpp.fields.fix_versions));
+            }
         }
         Ok(())
     }

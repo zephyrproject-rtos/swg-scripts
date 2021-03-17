@@ -96,7 +96,7 @@ pub struct SubIssue {
     description: Option<String>,
     pub summary: String,
     #[serde(rename = "customfield_10035")]
-    cve: Option<String>,
+    pub cve: Option<String>,
 
     issuetype: IssueType,
 
