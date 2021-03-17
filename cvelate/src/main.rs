@@ -393,7 +393,14 @@ impl FullInfo {
 
         println!("---- Issues with incorrect backports");
         for bp in &bps {
-            println!("{} ({}): {}", bp.issue.key,
+            // Skip those that are Rejected.  Don't skip Public because the backports still may
+            // need to be done.
+            if bp.issue.fields.status.name == "Rejected" {
+                continue;
+            }
+
+            println!("{} (af:{} fix:{}): {}", bp.issue.key,
+                zepsec::SliceFmt(&bp.issue.fields.versions),
                 zepsec::SliceFmt(&bp.issue.fields.fix_versions),
                 bp.issue.fields.cve
                     .as_ref()
