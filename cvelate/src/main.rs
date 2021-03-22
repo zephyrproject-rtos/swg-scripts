@@ -389,6 +389,9 @@ impl FullInfo {
         for bp in &all_bps {
             println!("{} {} ({})", bp.key, bp.fields.status,
                 zepsec::SliceFmt(&bp.fields.versions));
+            for lnk in self.info.get_github_links(&bp.key).await? {
+                println!("        {}", lnk.url());
+            }
         }
 
         println!("---- Issues with incorrect backports");
