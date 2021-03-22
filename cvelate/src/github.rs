@@ -81,8 +81,11 @@ impl Github {
                 let key = key.clone();
                 let gh = self.clone();
                 tokio::spawn(async move {
-                    let value = gh.get_pr(&key).await.unwrap();
-                    (key.pr, value)
+                    if let Ok(value) = gh.get_pr(&key).await {
+                        (key.pr, value)
+                    } else {
+                        panic!("Error getting {:?}", key);
+                    }
                 })
             })
             .collect();

@@ -14,6 +14,8 @@ subcommands:
       about: Report on alerts needing to be sent
   - backports:
       about: Report on backports and status
+  - gh-status:
+      about: Report status on the GH issues
   - cve:
       about: Report on states of CVEs
   - missing:

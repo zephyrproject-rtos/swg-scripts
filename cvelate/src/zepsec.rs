@@ -542,14 +542,15 @@ where V: fmt::Display
         if self.0.len() == 1 {
             write!(f, "{}", self.0[0])
         } else {
-            write!(f, "[")?;
+            // write!(f, "[")?;
             for i in 0 .. self.0.len() {
                 if i > 0 {
                     write!(f, ",")?;
                 }
                 write!(f, "{}", self.0[i])?;
             }
-            write!(f, "]")
+            // write!(f, "]")
+            Ok(())
         }
     }
 }

@@ -1,5 +1,6 @@
 use anyhow::Result;
 
+use crate::advisory::Advisory;
 use crate::cve::{
     Cve,
     Cves,
@@ -28,6 +29,7 @@ use std::{
     sync::Arc,
 };
 
+mod advisory;
 mod auth;
 mod cve;
 mod git;
@@ -75,6 +77,10 @@ async fn main() -> Result<()> {
         FullInfo::new(&config).await?.alerts().await?;
     } else if let Some(_) = matches.subcommand_matches("backports") {
         FullInfo::new(&config).await?.backports().await?;
+    } else if let Some(_) = matches.subcommand_matches("gh-status") {
+        let adv = Advisory::new(&config)?;
+        adv.report_tbd();
+        adv.report_unreleased().await?;
     } else if let Some(_) = matches.subcommand_matches("debug-query") {
         zepsec::debug_load(&config).await?;
     } else {
