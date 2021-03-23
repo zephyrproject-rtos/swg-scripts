@@ -1,0 +1,26 @@
+[package]
+name = "cvelate"
+version = "0.1.0"
+authors = ["David Brown <david.brown@linaro.org>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "2.33", features = ["yaml"] }
+config = { version = "0.10", features = ["toml"] }
+dirs = "1"
+env_logger = "0.8"
+git2 = "0.13"
+lazy_static = "1.4"
+log = "0.4"
+prettytable-rs = "0.8"
+regex = "1.4"
+reqwest = { version = "0.11", features = ["json"] }
+semver = "0.11"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+term = "0.5"
+tokio = { version = "1", features = ["io-util", "process", "macros", "rt-multi-thread"] }

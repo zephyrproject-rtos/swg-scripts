@@ -1,0 +1,30 @@
+name: cvelate
+version: "0.1"
+author: David Brown <david.brown@linaro.org>
+about: Manage CVEs and issues within Zephyr
+args:
+  - config:
+      short: c
+      long: config
+      value_name: CONFIG
+      help: Set path to config file
+      takes_value: true
+subcommands:
+  - alerts:
+      about: Report on alerts needing to be sent
+  - backports:
+      about: Report on backports and status
+  - gh-status:
+      about: Report status on the GH issues
+  - cve:
+      about: Report on states of CVEs
+  - missing:
+      about: Report on ZEPSECs missing an embargo date
+  - embargo:
+      about: Show reports on what has left embargo
+  - rnotes:
+      about: Generate release notes
+  - merged:
+      about: Determine what changes need a fixed version based on being merged.
+  - debug-query:
+      about: Run a debug query to JIRA and dump the output.

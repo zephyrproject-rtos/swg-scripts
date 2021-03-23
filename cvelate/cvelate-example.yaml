@@ -1,0 +1,21 @@
+# Configuration
+#
+# Copy this file to .cvelate.yaml
+
+# Authentication information for JIRA.
+zepsec:
+  host: zephyrprojectsec.atlassian.net
+  login: <email>
+  password: <auth-token>
+
+github:
+  login: <user>
+  password: <auth-token>
+
+# Directory where your zephyr repo is.
+zephyr:
+  repo: /home/davidb/linaro/zep/zephyr
+
+# Directory where the swg-docs.wiki is cloned.
+advisory:
+  file: /home/davidb/linaro/zep/swg-docs.wiki/Advisories.md
