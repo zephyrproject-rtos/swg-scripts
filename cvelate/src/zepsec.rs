@@ -562,3 +562,13 @@ pub fn keyvalue(text: &str) -> (&str, usize) {
     let num: usize = fields[1].parse().expect("JIRA issue to be AAAAA-nn");
     (fields[0], num)
 }
+
+// Decompose a CVE so it can sort properly.
+pub fn cvevalue(text: &str) -> (usize, usize) {
+    let fields: Vec<&str> = text.split('-').collect();
+    assert_eq!(fields.len(), 3);
+    assert_eq!(fields[0], "CVE");
+    let year: usize = fields[1].parse().expect("CVE year must be digits");
+    let num: usize = fields[2].parse().expect("CVE number must be digits");
+    (year, num)
+}

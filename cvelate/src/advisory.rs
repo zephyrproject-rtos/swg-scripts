@@ -167,6 +167,10 @@ impl Advisory {
             // println!("Ship: {:#?}", builder.into_entry());
             result.push(builder.into_entry()?);
         }
+
+        // Sort everything by CVE number.
+        result.sort_by_key(|e| crate::zepsec::cvevalue(&e.cve));
+
         // println!("Ship: {:#?}", result);
         Ok(Advisory {
             entries: result,
