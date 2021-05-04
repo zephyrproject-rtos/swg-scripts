@@ -44,8 +44,8 @@ class App():
         self.ghsa_re = re.compile(r'^/.*/.*/security/advisories/(GHSA-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4})$')
 
     def fetch_1_index(self, state, page):
-        payload = {'page': str(page), 'state': state}
-        r = requests.get(self.__url(), params=payload)
+        params = {'page': str(page), 'state': state}
+        r = requests.get(self.__url(), params=params, cookies=self.cookies)
 
         soup = BeautifulSoup(r.text, 'html.parser')
         e = soup.select('a')
@@ -66,7 +66,7 @@ class App():
         result = []
         page = 1
         while True:
-            items = self.fetch_1_index(state, page=page)
+            items = self.fetch_1_index(state=state, page=page)
             if len(items) == 0:
                 break
             result.extend(items)
@@ -79,7 +79,7 @@ class App():
         permission problems, can return None.
         """
         url = self.__url() + '/' + ghsa
-        r = requests.get(url)
+        r = requests.get(url, cookies=self.cookies)
         # print(r.text)
 
         fields = {}
@@ -116,9 +116,9 @@ class App():
         assert len(e) == 1
         fields['cvss'] = e[0].contents[0]
 
-        # e = soup.select('textarea[name="repository_advisory[description]"]')
-        # assert len(e) == 1
-        # fields['description'] = e[0].contents
+        e = soup.select('textarea[name="repository_advisory[description]"]')
+        assert len(e) == 1
+        fields['description'] = e[0].contents
 
         # BROKEN
         e = soup.select('div.js-cwe-list span')
