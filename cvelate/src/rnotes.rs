@@ -11,6 +11,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use std::{
     collections::BTreeMap,
+    env,
     fs::File,
     io::{
         BufRead,
@@ -21,10 +22,6 @@ use std::{
 lazy_static! {
     static ref CVE_RE: Regex = Regex::new(r"^CVE-(\d\d\d\d)-(\d+)( .*)?$").unwrap();
 }
-
-// For now, we just refer to the file directly, and assume that the runner
-// of the script will make sure that git is updated.
-static VUL_FILE: &str = "../../zephyr/doc/security/vulnerabilities.rst";
 
 /// All of the vulnerabilities listed in the vulnerabilities file.
 #[derive(Debug)]
@@ -68,7 +65,10 @@ impl Rnotes {
 
         let mut last_cve = None;
         let mut state = RnoteState::Reserved;
-        for line in BufReader::new(File::open(VUL_FILE)?).lines() {
+        let mut vulnerabilities = env::var("ZEPHYR_BASE").unwrap_or(String::from("../../zephyr"));
+        vulnerabilities.push_str("/doc/security/vulnerabilities.rst");
+
+        for line in BufReader::new(File::open(vulnerabilities)?).lines() {
             let line = line?;
             if let Some(cve) = CveNum::from_line(&line) {
                 result.push(&mut last_cve, state);
