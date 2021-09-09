@@ -17,11 +17,36 @@ web session to github.  One way to do this is to use an add-on "Export
 Cookies" for Firefox.  There should be something similar for Chrome.
 """
 
+import cvejson
 import argparse
 from bs4 import BeautifulSoup
 import http.cookiejar
+import os
 import requests
 import re
+
+
+def splitver(text):
+    return text.split(", ")
+
+
+#class CVSS():
+#    """Conversions between the raw CVSS string and the expanded JSON
+#    values used in the CVE."""
+#    def __init__(self, pri, raw):
+#        """Create a CVSS indicator.  The pri should be from github,
+#        and be of the form "n.m Medium".  The score will be used
+#        directly in the JSON.  The RAW data should be of the form
+#        "CVSS:3.1/AV:P..."."""
+#        pri = pri.split(' ')
+#        self.score = pri[0]
+#        self.severity = pri[1].upper()
+#        fields = raw.split('/')
+#        assert fields[0] == "CVSS:3.1"
+#        self.fields = [f.split(':') for f in fields[1:]]
+#        print("score", self.score)
+#        print("severity", self.severity)
+#        print("fields", self.fields)
 
 
 class App():
@@ -42,10 +67,15 @@ class App():
             raise Exception("Must specify cookie file")
 
         self.ghsa_re = re.compile(r'^/.*/.*/security/advisories/(GHSA-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4})$')
+        self.fix_re = re.compile(r'^- v(\d+(\.\d+)+): (#(\d+)|TBD).*$', re.M)
+        self.embargo_re = re.compile(r'^embargo: (\d{4}-\d{2}-\d{2}).*$', re.M)
 
     def fetch_1_index(self, state, page):
         params = {'page': str(page), 'state': state}
         r = requests.get(self.__url(), params=params, cookies=self.cookies)
+
+        # with open('index-{}-{}.html'.format(state, page), 'w') as fd:
+        #     fd.write(r.text)
 
         soup = BeautifulSoup(r.text, 'html.parser')
         e = soup.select('a')
@@ -57,7 +87,7 @@ class App():
             m = self.ghsa_re.match(attrs['href'])
             if m is None:
                 continue
-            print(m.group(1))
+            # print(m.group(1))
             result.append(m.group(1))
 
         return result
@@ -82,6 +112,10 @@ class App():
         r = requests.get(url, cookies=self.cookies)
         # print(r.text)
 
+        # Write contents to a file, to help with manual parsing.
+        # with open(ghsa + '.html', 'w') as fd:
+        #     fd.write(r.text)
+
         fields = {}
 
         soup = BeautifulSoup(r.text, 'html.parser')
@@ -98,8 +132,10 @@ class App():
         # Affects and fixed versions.
         e = soup.select('div.f4')
         assert len(e) == 2
-        fields['affects'] = e[0].contents
-        fields['fixed'] = e[1].contents
+        assert len(e[0].contents) == 1
+        assert len(e[1].contents) == 1
+        fields['affects'] = splitver(e[0].contents[0])
+        fields['fixed'] = splitver(e[1].contents[0])
 
         e = soup.select('h1.gh-header-title')
         assert len(e) == 1
@@ -118,9 +154,9 @@ class App():
 
         e = soup.select('textarea[name="repository_advisory[description]"]')
         assert len(e) == 1
-        fields['description'] = e[0].contents
+        assert len(e[0].contents) == 1
+        fields['description'] = e[0].contents[0]
 
-        # BROKEN
         e = soup.select('div.js-cwe-list span')
         assert len(e) % 2 == 0
         res = []
@@ -132,19 +168,60 @@ class App():
             res.append("{} {}".format(desc[0], tag[0]))
         fields['cwe'] = res
 
+        # Several fields aren't present in the raw GHSA, but we can
+        # extract the data from specially formatted comments.
+        fields['patches'] = []
+        for m in self.fix_re.finditer(fields['description']):
+            fields['patches'].append((m.group(1), m.group(3)))
+
+        m = self.embargo_re.search(fields['description'])
+        if m is not None:
+            fields['embargo'] = m.group(1)
+
         return fields
 
     def __url(self):
         return "https://github.com/zephyrproject-rtos/zephyr/security/advisories"
 
 
+def pathof(cve):
+    """Generate a pathname for this CVE."""
+    # print(cve)
+    year = cve[4:8]
+    # print(year)
+    num = cve[9:]
+    # print(num)
+    sub = num[:-3] + 'xxx'
+    os.makedirs(year + '/' + sub, exist_ok=True)
+    return year + '/' + sub + '/' + cve + '.json'
+
 def main():
     app = App()
 
     adv = app.fetch_index(state='published')
-    print(adv)
-    g0 = app.fetch_ghsa(adv[0])
-    print(g0)
+    # adv = app.fetch_index(state='draft')
+    # print(adv)
+    for gh in adv:
+        print("Fetching", gh)
+        g0 = app.fetch_ghsa(gh)
+        # print(g0['cve'])
+
+        build = cvejson.CveBuilder()
+        build.ghsa = g0['ghsa']
+        build.cve_id = g0['cve']
+        build.public_date = g0['embargo']
+        build.title = g0['title']
+        build.versions = g0['affects']
+        build.thanks = []
+        build.description = g0['description']
+        build.source = "https://github.com/zephyrproject-rtos/zephyr/security/advisories/" + g0['ghsa']
+        build.cvss = g0['cvss']
+        build.cwe = g0['cwe']
+        # for k, v in g0.items():
+        #     print(k, "->", v)
+        # cvss = CVSS(g0['cvss-pri'], g0['cvss'])
+        with open(pathof(g0['cve']), 'w') as fd:
+            fd.write(build.to_json())
 
 
 if __name__ == '__main__':

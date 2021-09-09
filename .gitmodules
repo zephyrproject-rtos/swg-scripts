@@ -1,0 +1,3 @@
+[submodule "ghsa/cvss"]
+	path = ghsa/cvss
+	url = https://github.com/skontar/cvss
